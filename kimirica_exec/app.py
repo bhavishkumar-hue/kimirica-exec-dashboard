@@ -284,6 +284,17 @@ with w_col, st.container(key="panel_watch"):
     insights.watchlist(M.watchlist(cd_today, PT, tbl_today, data.channel_last_date, scope, data.est_meta))
 
 # --------------------------------------------------------------------------- #
+# Refresh
+# --------------------------------------------------------------------------- #
+st.write("")
+_, rcol, _ = st.columns([1, 1, 1])
+with rcol:
+    if st.button("Refresh data", use_container_width=True):
+        clear_caches()
+        st.cache_data.clear()
+        st.rerun()
+
+# --------------------------------------------------------------------------- #
 # Sidebar: definitions only
 # --------------------------------------------------------------------------- #
 with st.sidebar:

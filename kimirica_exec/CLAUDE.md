@@ -73,7 +73,9 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
 - Minimal and clean. **No taglines or subtitles under headings**, no explanatory footnotes, no `*`/`†`
   markers, no "pp" (use plain % change). The only note allowed under the cards is
   "AOV is ASP for channels where order data isn't available." plus short data-coverage notes.
-- Header is just the Kimirica logo, centred. No status line, no refresh button.
+- Header is just the Kimirica logo, centred. No status line.
+- A "Refresh data" button sits at the very bottom of the page (after Highlights/Needs attention),
+  clears all caches and reruns. Owner reversed the earlier "no refresh button" rule -- keep it there.
 - All KPI cards the same size: 4 x 2 grid (MRP, gross, net, discount / quantity, AOV, ASP, ad spends).
 - Pacing ("Current month trend" / "Current FY trend"): month and year panels side by side; AOP, achieved,
   projected, pace; figures on the bar. Always describes the latest loaded month/FY to date, regardless of
