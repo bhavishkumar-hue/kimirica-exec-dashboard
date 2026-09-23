@@ -299,9 +299,9 @@ def fetch_aop_raw() -> pd.DataFrame:
 
 
 @st.cache_data(show_spinner=False, max_entries=4)
-def combine(version: str, _sales: pd.DataFrame, _weekly: pd.DataFrame | None):
+def combine(version: str, _sales: pd.DataFrame, _weekly: pd.DataFrame | None, max_date: dt.date):
     """Fill gross (weekly table, then estimates) and derive net sales. Cached per data version."""
-    df, meta = fill_gross(_sales, _weekly)
+    df, meta = fill_gross(_sales, _weekly, max_date=max_date)
     df["net_sales"] = df["gross_sales"] / (1 + config.GST_RATE)
     return df, meta
 
@@ -374,7 +374,7 @@ def load_dashboard_data() -> DashboardData:
     aop = hardcoded_aop()
 
     version = f"bq|{max_date}|{fetched_at.isoformat()}|{len(weekly) if weekly is not None else 0}"
-    df, est_meta = combine(version, sales, weekly)
+    df, est_meta = combine(version, sales, weekly, max_date)
     spans = _spans(sales, weekly, ads, targets)
 
     return DashboardData(
@@ -399,7 +399,7 @@ def _load_demo() -> DashboardData:
     targets = _prepare_targets(targets) if targets is not None else None
     aop = _prepare_aop(aop) if (aop is not None and config.BQ_AOP_TABLE) else None
     max_date = max(last_dates.values())
-    df, est_meta = combine(f"demo|{max_date}", sales, weekly)
+    df, est_meta = combine(f"demo|{max_date}", sales, weekly, max_date)
     return DashboardData(
         df=df, ads=ads, targets=targets, aop=aop, channel_last_date=last_dates, est_meta=est_meta,
         spans=_spans(sales, weekly, ads, targets),

@@ -58,13 +58,60 @@ def _from_weekly(df: pd.DataFrame, weekly: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _fill_prior_fy_gross(df: pd.DataFrame, max_date) -> pd.DataFrame:
+    """
+    Derive gross for last financial year's gaps, channel-wise, so YoY / last-year comparisons have
+    full coverage even where the sales master and weekly table don't go back that far or never had
+    gross for that channel:
+
+      1. Real gross (sales master or weekly table, already filled in by this point) always wins.
+      2. Else, if this FY's matching month (the same calendar month, one year later) has real gross
+         for that channel, apply that month's discount (1 - gross/MRP) to last year's MRP.
+      3. Else -- this FY's matching month hasn't happened yet, or never had real gross either --
+         apply that channel's average discount across whichever months of this FY DO have real
+         gross. A channel with no real discount anywhere this FY falls back to DEFAULT_DISCOUNT.
+
+    Runs after the weekly-table fill and before the general rolling-lookback estimate, so it wins
+    for last-FY dates while every other period is untouched and still uses the general estimate.
+    """
+    fy_start_this = pd.Timestamp(config.year_start(max_date))
+    fy_start_last = fy_start_this - pd.DateOffset(years=1)
+    fy_end_last = fy_start_this - pd.Timedelta(days=1)
+
+    gap = ((df["date"] >= fy_start_last) & (df["date"] <= fy_end_last)
+           & df["gross_sales"].isna() & df["mrp_sales"].notna())
+    if not gap.any():
+        return df
+
+    df = df.copy()
+    df["_month"] = df["date"].dt.to_period("M")
+    df["_ty_month"] = (df["date"] + pd.DateOffset(years=1)).dt.to_period("M")
+
+    this_fy_actual = (df["date"] >= fy_start_this) & df["gross_sales"].notna() & df["mrp_sales"].notna()
+    monthly = df.loc[this_fy_actual].groupby(["channel", "_month"]).agg(
+        g=("gross_sales", "sum"), m=("mrp_sales", "sum"))
+    monthly["discount"] = 1 - monthly["g"] / monthly["m"].where(monthly["m"] > 0)
+    disc_by_month = monthly["discount"].dropna().to_dict()                       # (channel, Period) -> discount
+    avg_discount = monthly["discount"].dropna().groupby(level=0).mean().to_dict()  # channel -> avg discount
+
+    for ch in df.loc[gap, "channel"].dropna().unique():
+        rows = gap & (df["channel"] == ch)
+        rate = df.loc[rows, "_ty_month"].map(lambda p: disc_by_month.get((ch, p))).astype(float)
+        rate = rate.fillna(avg_discount.get(ch, config.DEFAULT_DISCOUNT))
+        df.loc[rows, "gross_sales"] = df.loc[rows, "mrp_sales"] * (1 - rate.to_numpy())
+        df.loc[rows, "est"] = 1.0
+    return df.drop(columns=["_month", "_ty_month"])
+
+
 def fill_gross(sales: pd.DataFrame, weekly: pd.DataFrame | None,
-               lookback_days: int | None = None) -> tuple[pd.DataFrame, EstimateMeta]:
+               lookback_days: int | None = None, max_date=None) -> tuple[pd.DataFrame, EstimateMeta]:
     lookback = pd.Timedelta(days=lookback_days or config.EST_LOOKBACK_DAYS)
     df = sales.copy()
     df["est"] = 0.0
     if weekly is not None and not weekly.empty:
         df = _from_weekly(df, weekly)
+    if max_date is not None:
+        df = _fill_prior_fy_gross(df, max_date)
 
     meta: EstimateMeta = {}
     gap = df["gross_sales"].isna() & df["mrp_sales"].notna()

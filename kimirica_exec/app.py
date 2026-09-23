@@ -105,7 +105,7 @@ def _fy_label(f: pd.Timestamp) -> str:
 
 
 with st.container(key="filters"):
-    f1, f2, f3, f4, f5 = st.columns([2.4, 1.6, 2.0, 2.0, 1.6], vertical_alignment="bottom")
+    f1, f2, f3, f4, f5 = st.columns([2.2, 1.5, 2.8, 1.7, 1.4], vertical_alignment="bottom")
     with f1:
         mode = st.segmented_control("View", list(M.MODES), default="Month", key="view_mode") or "Month"
     with f2:
@@ -138,7 +138,8 @@ with st.container(key="filters"):
     cmp_start_custom = cmp_end_custom = None
     if compare == "Custom":
         # Its own row, not squeezed into f3 -- keeps the main row's columns a uniform height.
-        _, cc, _ = st.columns([2.4, 2.0, 5.2])
+        # Spacer widths mirror f1+f2 / f3 / f4+f5 above so this aligns under "Compare with".
+        _, cc, _ = st.columns([2.2 + 1.5, 2.8, 1.7 + 1.4])
         with cc:
             span = (end_ts - start_ts).days + 1
             cmp_default_end = min(start_ts.date() - dt.timedelta(days=1), data.max_date)
