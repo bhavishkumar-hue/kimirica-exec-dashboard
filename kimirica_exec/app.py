@@ -129,7 +129,7 @@ with st.container(key="filters"):
         cmp_start_custom = cmp_end_custom = None
         if compare == "Custom":
             span = (end_ts - start_ts).days + 1
-            cmp_default_end = min(start_ts - dt.timedelta(days=1), data.max_date)
+            cmp_default_end = min(start_ts.date() - dt.timedelta(days=1), data.max_date)
             cmp_default = st.session_state.get(
                 "cmp_custom_valid",
                 (max(data.min_date, cmp_default_end - dt.timedelta(days=span - 1)), cmp_default_end),

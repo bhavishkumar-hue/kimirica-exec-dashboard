@@ -425,6 +425,7 @@ def attach_targets(cd: pd.DataFrame, targets: pd.DataFrame | None, channels: lis
         cd = cd.copy()
         cd["target_sales"] = np.nan
         cd["achieved_sales"] = np.nan
+        cd["ach_metric"] = np.nan
         return cd
     t = targets[targets["channel"].isin(channels)] if channels else targets
     t = t.groupby(["date", "channel"], as_index=False)[["target_sales", "achieved_sales"]].sum(min_count=1)
@@ -432,13 +433,22 @@ def attach_targets(cd: pd.DataFrame, targets: pd.DataFrame | None, channels: lis
     out["group"] = out["channel"].map(config.CHANNEL_GROUPS).fillna("Other")
     for col in ("aov_proxy", "est"):
         out[col] = out[col].fillna(0.0)
+    out["ach_metric"] = achieved_series(out)
     return out
 
 
-def achieved_col(df: pd.DataFrame) -> str:
-    """AOP achievement comes from the AOP table's achieved revenue when it's loaded, else MRP sales."""
-    return "achieved_sales" if "achieved_sales" in df and df["achieved_sales"].notna().any() \
-        else config.TARGET_METRIC
+def achieved_series(df: pd.DataFrame) -> pd.Series:
+    """
+    Per-row achievement figure: the daily AOP table's achieved revenue for channels that have it
+    loaded at all (e.g. Website, Amazon-UAE), else MRP sales for channels the daily table has never
+    tracked (Amazon-SC, Amazon-VC only appear there as a combined "Amazon" row, and Tata Cliq_Others
+    / Smytten aren't in it at all) -- so those channels still show progress against their AOP target
+    instead of a permanent blank.
+    """
+    if "achieved_sales" not in df or not df["achieved_sales"].notna().any():
+        return df[config.TARGET_METRIC]
+    has_ach = df.groupby("channel")["achieved_sales"].transform(lambda s: s.notna().any())
+    return df["achieved_sales"].where(has_ach, df[config.TARGET_METRIC])
 
 
 def aop_for(aop: pd.DataFrame | None, channels: list[str], start=None, end=None,
@@ -489,7 +499,7 @@ def block(w: pd.DataFrame, days: int | None = None, ads: pd.DataFrame | None = N
     qty = _sum(w, "quantity")
     has_t = "target_sales" in w and w["target_sales"].notna().any()
     t = w[w["target_sales"].notna()] if has_t else None
-    t_act, t_tgt = (_sum(t, achieved_col(w)), _sum(t, "target_sales")) if has_t else (None, None)
+    t_act, t_tgt = (_sum(t, "ach_metric"), _sum(t, "target_sales")) if has_t else (None, None)
     ad = _sum(ads, "ad_spend") if ads is not None else None
     return {
         "gross": gross, "mrp": mrp, "net": net, "qty": qty,
@@ -569,26 +579,21 @@ def kpi_snapshot(cd: pd.DataFrame, ads: pd.DataFrame | None, P: Periods,
 
     s["target_channels"] = int(mtd_w.loc[mtd_w["target_sales"].notna(), "channel"].nunique())
     s["active_channels"] = int(mtd_w.loc[mtd_w["mrp_sales"].notna(), "channel"].nunique())
-    ach_col = achieved_col(cd)
     plan_month = aop_for(aop, channels or [], P.mtd_start, P.mtd_start)
     if plan_month is not None:
         s["month_target"], s["month_target_estimated"] = plan_month, False
     else:
         s["month_target"], s["month_target_estimated"] = _target_total(cd, P.mtd_start, P.month_end, P.days_in_month)
-    s["month_achieved"] = _sum(month_w, ach_col) if ach_col == "achieved_sales" \
-        else _sum(month_w[month_w["target_sales"].notna()], ach_col)
+    s["month_achieved"] = _sum(month_w[month_w["target_sales"].notna()], "ach_metric")
 
     s["projection"] = _lagged_projection(month_w, P, config.TARGET_METRIC)
-    s["target_projection"] = _lagged_projection(month_w[month_w[ach_col].notna()], P, ach_col)
+    s["target_projection"] = _lagged_projection(month_w[month_w["ach_metric"].notna()], P, "ach_metric")
     s["current_rr"] = s["target_projection"] / P.days_in_month if s["target_projection"] is not None else None
     s["projected_ach"] = ratio(s["target_projection"], s["month_target"])
     s["month_ach"] = ratio(s["month_achieved"], s["month_target"])
     # year pacing (financial year to date vs the full-year AOP)
     ytd_w = window(cd, P.ytd_start, P.as_of)
-    if ach_col == "achieved_sales":
-        s["year_actual"] = _sum(ytd_w, ach_col)
-    else:
-        s["year_actual"] = _sum(ytd_w[ytd_w["target_sales"].notna()], ach_col)
+    s["year_actual"] = _sum(ytd_w[ytd_w["target_sales"].notna()], "ach_metric")
     plan_year = aop_for(aop, channels or [], fy_start=P.ytd_start.year)
     if plan_year is not None:
         s["year_target"], s["year_target_estimated"] = plan_year, False
@@ -612,7 +617,10 @@ def _grouped(w: pd.DataFrame, key: str) -> pd.DataFrame:
     cols = [c for c in _SUMS if c in w]
     out = w.groupby(key)[cols].sum(min_count=1)
     if "target_sales" in w:
-        out["t_act"] = w[w["target_sales"].notna()].groupby(key)[achieved_col(w)].sum(min_count=1)
+        # ach_metric is only present after attach_targets (channel frames); the category frame never
+        # gets targets merged in, but keep this column-safe rather than crash on the always-NaN case.
+        ach_col = "ach_metric" if "ach_metric" in w else config.TARGET_METRIC
+        out["t_act"] = w[w["target_sales"].notna()].groupby(key)[ach_col].sum(min_count=1)
     out["aov_num"] = w[w["aov_den"].notna()].groupby(key)["gross_sales"].sum(min_count=1)
     return out
 
@@ -651,8 +659,7 @@ def channel_table(cd: pd.DataFrame, P: Periods, key: str = "channel",
     _common_columns(out, mtd, lmtd)
     if plan is not None:
         # AOP for the whole months in the period; achieved to date against it (read with time elapsed)
-        ach_col = achieved_col(cd)
-        achieved = window(cd, P.aop_start, P.as_of).groupby(key)[ach_col].sum(min_count=1).reindex(idx)
+        achieved = window(cd, P.aop_start, P.as_of).groupby(key)["ach_metric"].sum(min_count=1).reindex(idx)
         out["Target"] = plan.reindex(idx)
         out["Ach."] = _ratio_col(achieved, out["Target"])
     else:
@@ -727,25 +734,24 @@ def monthly_trend(cd: pd.DataFrame, ads: pd.DataFrame | None, P: Periods,
 def target_frame(cd: pd.DataFrame, P: Periods, mode: str,
                  aop: pd.DataFrame | None = None, channels: list[str] | None = None) -> pd.DataFrame:
     """Day: that day's achieved vs daily target. Period: achieved to date vs AOP for the period's months."""
-    ach_col = achieved_col(cd)
     empty = pd.DataFrame(columns=["channel", "actual", "target", "ach"])
     if mode == "Day":
         w = window(cd, P.as_of, P.as_of, shift_start=True)  # the period's last day
         w = w[w["target_sales"].notna()]
         if w.empty:
             return empty
-        g = w.groupby("channel").agg(actual=(ach_col, lambda x: x.sum(min_count=1)), target=("target_sales", "sum"))
+        g = w.groupby("channel").agg(actual=("ach_metric", lambda x: x.sum(min_count=1)), target=("target_sales", "sum"))
     else:
         plan = aop_for(aop, channels or [], P.aop_start, P.mtd_start, by="channel")
         w = window(cd, P.aop_start, P.as_of)
         if plan is not None:
             g = pd.DataFrame({"target": plan})
-            g["actual"] = w.groupby("channel")[ach_col].sum(min_count=1).reindex(g.index)
+            g["actual"] = w.groupby("channel")["ach_metric"].sum(min_count=1).reindex(g.index)
         else:
             w = w[w["target_sales"].notna()]
             if w.empty:
                 return empty
-            g = w.groupby("channel").agg(actual=(ach_col, lambda x: x.sum(min_count=1)), target=("target_sales", "sum"))
+            g = w.groupby("channel").agg(actual=("ach_metric", lambda x: x.sum(min_count=1)), target=("target_sales", "sum"))
     g.index.name = "channel"
     g["ach"] = g["actual"] / g["target"].where(g["target"] > 0)
     return g.sort_values("target", ascending=True).reset_index()

@@ -26,6 +26,11 @@ def _fmt(df: pd.DataFrame) -> str:
     return df.to_string(index=False, na_rep="—", float_format=lambda v: f"{v:,.0f}")
 
 
+def _int0(value) -> int:
+    """NA-safe int(): BigQuery's SUM/COUNT over zero rows can come back NULL, not 0."""
+    return 0 if pd.isna(value) else int(value)
+
+
 EXCLUDED = sorted({re.sub(r"[^a-z]", "", c.lower()) for c in config.EXCLUDED_CATEGORIES})
 
 
@@ -57,7 +62,7 @@ def main(start: dt.date, end: dt.date) -> None:
                SUM({c.COL_MRP}) AS mrp_raw,
                SUM({c.COL_GROSS}) AS gross_raw,
                SUM({c.COL_QTY}) AS qty_raw,
-               COUNT(*) AS rows,
+               COUNT(*) AS n_rows,
                COUNT(DISTINCT {c.COL_DATE}) AS days,
                COUNTIF({c.COL_GROSS} IS NULL) AS gross_nulls,
                COUNTIF({c.COL_GROSS} = 0) AS gross_zeros,
@@ -85,7 +90,7 @@ def main(start: dt.date, end: dt.date) -> None:
     print("PER CHANNEL: raw sales master vs dashboard")
     print("  mrp_diff should be 0. gross_added is what the weekly table and estimates filled in.")
     print(_fmt(cmp[["channel", "mrp_raw", "mrp_dash", "mrp_diff", "gross_raw", "gross_dash",
-                    "gross_added", "est_days", "qty_raw", "qty_dash", "rows", "days",
+                    "gross_added", "est_days", "qty_raw", "qty_dash", "n_rows", "days",
                     "gross_nulls", "gross_zeros", "last_row"]]))
     print(f"\nTOTAL   raw MRP {cmp['mrp_raw'].sum():,.0f}   dashboard MRP {cmp['mrp_dash'].sum():,.0f}"
           f"   raw gross {cmp['gross_raw'].sum():,.0f}   dashboard gross {cmp['gross_dash'].sum():,.0f}")
@@ -98,7 +103,7 @@ def main(start: dt.date, end: dt.date) -> None:
           WHERE {c.COL_DATE} BETWEEN @start AND @end GROUP BY {grain} HAVING COUNT(*) > 1)
     """, start, end)
     print(f"\nDUPLICATES in the sales master at ({grain}): "
-          f"{int(dup['duplicate_groups'][0] or 0)} groups, {int(dup['extra_rows'][0] or 0)} extra rows")
+          f"{_int0(dup['duplicate_groups'][0])} groups, {_int0(dup['extra_rows'][0])} extra rows")
     print("  Anything above 0 means the dashboard is summing the same day more than once.")
 
     # ---- 4. channel names across the tables -----------------------------------------------
@@ -132,7 +137,7 @@ def main(start: dt.date, end: dt.date) -> None:
     if c.BQ_TARGET_TABLE:
         tg = _raw(f"""
             SELECT {c.T_COL_CHANNEL} AS channel, SUM({c.T_COL_TARGET}) AS target_raw,
-                   COUNT(*) AS rows, COUNT(DISTINCT DATE({c.T_COL_DATE})) AS days
+                   COUNT(*) AS n_rows, COUNT(DISTINCT DATE({c.T_COL_DATE})) AS days
             FROM `{c.fqn(c.BQ_TARGET_TABLE)}`
             WHERE DATE({c.T_COL_DATE}) BETWEEN @start AND @end
             GROUP BY channel ORDER BY target_raw DESC
