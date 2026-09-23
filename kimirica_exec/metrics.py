@@ -439,16 +439,13 @@ def attach_targets(cd: pd.DataFrame, targets: pd.DataFrame | None, channels: lis
 
 def achieved_series(df: pd.DataFrame) -> pd.Series:
     """
-    Per-row achievement figure: the daily AOP table's achieved revenue for channels that have it
-    loaded at all (e.g. Website, Amazon-UAE), else MRP sales for channels the daily table has never
-    tracked (Amazon-SC, Amazon-VC only appear there as a combined "Amazon" row, and Tata Cliq_Others
-    / Smytten aren't in it at all) -- so those channels still show progress against their AOP target
-    instead of a permanent blank.
+    Per-row achievement figure for AOP vs actual: always MRP sales, channel-wise, straight from
+    Executive_Sales_Master -- never the AOP_Daily_Target_vs_Achievement table's Achieved_Revenue.
+    That daily table only ever carries a combined "Amazon" line (no Amazon-SC / Amazon-VC split) and
+    is missing several plan-only channels entirely, while the sales master has every channel split
+    out and is what the AOP plan is measured against anyway (AOP is on MRP).
     """
-    if "achieved_sales" not in df or not df["achieved_sales"].notna().any():
-        return df[config.TARGET_METRIC]
-    has_ach = df.groupby("channel")["achieved_sales"].transform(lambda s: s.notna().any())
-    return df["achieved_sales"].where(has_ach, df[config.TARGET_METRIC])
+    return df[config.TARGET_METRIC]
 
 
 def aop_for(aop: pd.DataFrame | None, channels: list[str], start=None, end=None,

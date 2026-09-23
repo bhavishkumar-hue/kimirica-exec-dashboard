@@ -48,9 +48,16 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   Orders data is unreliable; no orders column is shown.
 - **Growth** is measured on MRP sales everywhere.
 - **AOP is on MRP.** Year AOP = `SUM(Revenue) WHERE Financial_Year = '2026-27'` across all channels
-  (unless filtered). Month AOP = that month's Revenue. Achieved = `Achieved_Revenue` up to the selected
-  date. Projected = achieved extended at the current daily pace. Channel/table achievement is coloured
-  against the share of time elapsed, not against 100%.
+  (unless filtered). Month AOP = that month's Revenue. **Achieved = MRP sales, channel-wise, from
+  Executive_Sales_Master up to the selected date** (`metrics.achieved_series`) -- NOT
+  `AOP_Daily_Target_vs_Achievement`'s `Achieved_Revenue`. That daily table only carries a combined
+  "Amazon" row (no Amazon-SC / Amazon-VC split) and is missing several plan-only channels entirely,
+  so it can't represent the FY26-27 plan's per-channel breakdown; MRP sales can, and it's what the
+  plan is measured against anyway. The Day view of the AOP-vs-actual chart still takes its *target*
+  from the daily table's `Target_Revenue` (no daily figure exists in the monthly AOP plan), but its
+  achieved figure is MRP sales too, same as everywhere else. Projected = achieved extended at the
+  current daily pace. Channel/table achievement is coloured against the share of time elapsed, not
+  against 100%.
 - **Amazon-VC** lags ~1 day; its latest date is detected at runtime and its current and comparison windows
   end on that day number. Only flagged if later than its usual 1 day.
 - **Periods:** View = Month (default, this month to date) / Financial year / Custom. Compare = Previous
