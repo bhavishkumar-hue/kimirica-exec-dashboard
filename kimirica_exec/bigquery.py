@@ -22,6 +22,7 @@ import streamlit as st
 
 import config
 import queries
+from aop_plan import hardcoded_aop
 from estimates import fill_gross
 
 IST = ZoneInfo(config.TIMEZONE)
@@ -367,12 +368,10 @@ def load_dashboard_data() -> DashboardData:
             targets = fetch_targets(hist_start, load_to)
         except Exception as exc:
             notes.append(f"AOP target table could not be read ({exc}).")
-    aop = None
-    if config.BQ_AOP_TABLE:
-        try:
-            aop = _prepare_aop(fetch_aop_raw())
-        except Exception as exc:
-            notes.append(f"Monthly AOP table could not be read ({exc}).")
+    # Hardcoded FY26-27 plan (see aop_plan.py) instead of BigQuery's AOP_targets table, which
+    # only has a combined "Amazon" row and no Tata Cliq_Others. Swap back once that table has
+    # the same channel-level detail: aop = _prepare_aop(fetch_aop_raw()).
+    aop = hardcoded_aop()
 
     version = f"bq|{max_date}|{fetched_at.isoformat()}|{len(weekly) if weekly is not None else 0}"
     df, est_meta = combine(version, sales, weekly)

@@ -161,7 +161,7 @@ def _sum(df: pd.DataFrame, col: str):
 # Periods
 # =========================================================================== #
 MODES = ("Month", "Financial year", "Custom")
-COMPARES = ("Previous period", "Last year")
+COMPARES = ("Previous period", "Last year", "Custom")
 
 
 @dataclass(frozen=True)
@@ -314,10 +314,12 @@ def _comparison(start: pd.Timestamp, end: pd.Timestamp, mode: str, compare: str)
 
 
 def build_periods(start, end=None, last_dates: dict | None = None,
-                  mode: str = "Month", compare: str = "Previous period") -> Periods:
+                  mode: str = "Month", compare: str = "Previous period",
+                  cmp_start: object = None, cmp_end: object = None) -> Periods:
     """
     build_periods(as_of) keeps the old behaviour: this month to date vs LMTD.
     build_periods(start, end, ...) sets any period and comparison.
+    compare="Custom" needs cmp_start/cmp_end (the caller's own comparison window).
     """
     if end is None or isinstance(end, dict):
         last_dates = end if isinstance(end, dict) else last_dates
@@ -330,7 +332,13 @@ def build_periods(start, end=None, last_dates: dict | None = None,
     mtd_start = a.replace(day=1)
     pm_end = mtd_start - DAY
     ytd_start = pd.Timestamp(config.year_start(a.date()))
-    cmp_start, cmp_end, label, short = _comparison(s_, a, mode, compare)
+    if compare == "Custom" and cmp_start is not None and cmp_end is not None:
+        c_start, c_end = pd.Timestamp(cmp_start).normalize(), pd.Timestamp(cmp_end).normalize()
+        if c_start > c_end:
+            c_start, c_end = c_end, c_start
+        cmp_start, cmp_end, label, short = c_start, c_end, "vs custom period", "Custom"
+    else:
+        cmp_start, cmp_end, label, short = _comparison(s_, a, mode, compare)
     return Periods(
         as_of=a, cur_start=s_, cmp_start=cmp_start, cmp_end=cmp_end, cmp_label=label, cmp_short=short,
         mode=mode, mtd_start=mtd_start, month_end=a.replace(day=dim),

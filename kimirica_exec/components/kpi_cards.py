@@ -102,13 +102,13 @@ def render_pacing(s: dict, P: M.Periods) -> None:
     if not s["month_target"] and not s["year_target"]:
         return
     month = _panel(
-        "Month pacing", f"{P.as_of:%B %Y}, {P.days_left} days left",
+        "Current month trend", f"{P.as_of:%B %Y}, {P.days_left} days left",
         s["month_target"], s["month_achieved"], s["month_ach"],
         s["target_projection"], s["projected_ach"], s["current_rr"],
         P.month_progress, s["month_target_estimated"],
     )
     year = _panel(
-        "Year pacing", f"{P.year_label.replace(' to date', '')}, day {P.year_days_elapsed} of {P.year_days}",
+        "Current FY trend", f"{P.year_label.replace(' to date', '')}, day {P.year_days_elapsed} of {P.year_days}",
         s["year_target"], s["year_actual"], s["year_ach"],
         s["year_projection"], s["year_projected_ach"], s["year_rr"],
         P.year_progress, s["year_target_estimated"],

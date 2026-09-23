@@ -126,6 +126,19 @@ with st.container(key="filters"):
     with f3:
         compare = st.segmented_control("Compare with", list(M.COMPARES), default="Previous period",
                                        key="compare") or "Previous period"
+        cmp_start_custom = cmp_end_custom = None
+        if compare == "Custom":
+            span = (end_ts - start_ts).days + 1
+            cmp_default_end = min(start_ts - dt.timedelta(days=1), data.max_date)
+            cmp_default = st.session_state.get(
+                "cmp_custom_valid",
+                (max(data.min_date, cmp_default_end - dt.timedelta(days=span - 1)), cmp_default_end),
+            )
+            cmp_picked = st.date_input("Compare with dates", value=cmp_default, min_value=data.min_date,
+                                       max_value=data.max_date, format="DD/MM/YYYY", key="cmp_custom_dates")
+            if isinstance(cmp_picked, (tuple, list)) and len(cmp_picked) == 2:
+                st.session_state["cmp_custom_valid"] = (cmp_picked[0], cmp_picked[1])
+            cmp_start_custom, cmp_end_custom = st.session_state.get("cmp_custom_valid", cmp_default)
     with f4:
         sel_channels = st.multiselect("Channels", channel_options, placeholder="All channels", key="channels")
     with f5:
@@ -136,7 +149,8 @@ with st.container(key="filters"):
             sel_categories = []
 
 scope = sel_channels or channel_options
-P = M.build_periods(start_ts, end_ts, data.channel_last_date, mode=mode, compare=compare)
+P = M.build_periods(start_ts, end_ts, data.channel_last_date, mode=mode, compare=compare,
+                    cmp_start=cmp_start_custom, cmp_end=cmp_end_custom)
 cd_raw = M.attach_targets(
     cached_channel_daily(version, tuple(sel_channels), tuple(sel_categories), data.df),
     data.targets, sel_channels, sel_categories,

@@ -237,6 +237,8 @@ CHANNEL_GROUPS = {
     "Myntra": "Marketplaces",
     "Nykaa": "Marketplaces",
     "Tira": "Marketplaces",
+    "Tata Cliq_Others": "Marketplaces",  # AOP-only: target line, no sales rows of its own
+    "Smytten": "Marketplaces",           # AOP-only: target line, no sales rows of its own
     "Blinkit": "Quick commerce",
     "Zepto": "Quick commerce",
     "Swiggy": "Quick commerce",

@@ -55,7 +55,8 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   end on that day number. Only flagged if later than its usual 1 day.
 - **Periods:** View = Month (default, this month to date) / Financial year / Custom. Compare = Previous
   period (LMTD for a month to date, full previous month for a completed month, previous FY same days,
-  or for Custom the same dates one month earlier, or the same dates last year if the range spans more than one month) / Last year (same dates a year earlier).
+  or for Custom the same dates one month earlier, or the same dates last year if the range spans more than one month) /
+  Custom (owner picks the comparison dates directly) / Last year (same dates a year earlier).
 - A source that ends early (ad spends currently stop in May) must not truncate anything; show a short
   note under the cards instead ("No ad spends after 31 May 2026").
 - Show a red "these numbers are not real" banner whenever running on demo data or when secrets fail to parse.
@@ -67,7 +68,9 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   "AOV is ASP for channels where order data isn't available." plus short data-coverage notes.
 - Header is just the Kimirica logo, centred. No status line, no refresh button.
 - All KPI cards the same size: 4 x 2 grid (MRP, gross, net, discount / quantity, AOV, ASP, ad spends).
-- Pacing: month and year panels side by side; AOP, achieved, projected, pace; figures on the bar.
+- Pacing ("Current month trend" / "Current FY trend"): month and year panels side by side; AOP, achieved,
+  projected, pace; figures on the bar. Always describes the latest loaded month/FY to date, regardless of
+  the View/date filters (same for Highlights and Needs attention).
 - Monthly trend: bars, last year as faint ghost bars; tooltip shows only value, last year, YoY, MoM.
 - Section order: cards, pacing, channel table, category table, what-moved + AOP vs actual,
   monthly trend, highlights + needs attention.
@@ -80,3 +83,11 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
 - Verify channel names match across all five tables; mismatches go in `CHANNEL_ALIASES` in config.py.
 - Unconfirmed: exact text format of `AOP_targets.Month` (parser handles Apr / April / Apr-26 / 2026-04 / 04).
 - Always run `python check_numbers.py` after logic changes and compare with the owner's own SQL.
+- **Month AOP and year AOP currently come from `aop_plan.py`, not the live `AOP_targets` BigQuery
+  table.** The owner's FY26-27 plan splits Amazon into Amazon-SC / Amazon-VC / Amazon-UAE and adds
+  Tata Cliq_Others; `AOP_targets` only has one combined "Amazon" row and no Tata Cliq_Others, so it
+  can't represent this yet. `bigquery.load_dashboard_data` calls `aop_plan.hardcoded_aop()` instead of
+  `_prepare_aop(fetch_aop_raw())`. This is FY26-27 only and is edited by hand — once `AOP_targets` is
+  loaded with the same channel-level detail, switch that one line back to the live query (the swap-back
+  comment is right above it in bigquery.py) and delete aop_plan.py. `check_numbers.py`'s AOP section
+  still reads the live table, so it will disagree with the dashboard until then.
