@@ -48,7 +48,13 @@ def _from_weekly(df: pd.DataFrame, weekly: pd.DataFrame) -> pd.DataFrame:
         share = (part["mrp_sales"] / total.where(total > 0)).where(grp.transform("size") > 1, 1.0)
 
     df = df.copy()
-    df.loc[part_mask, "gross_sales"] = (joined["gross_w"] * share).to_numpy()
+    filled = joined["gross_w"].to_numpy() * share.to_numpy()
+    # Gross can never exceed MRP (discount is never negative) or be negative. A hand-entered weekly
+    # row that breaks this is bad data, not a real figure -- treat it as not-loaded so the
+    # discount-estimate fallback below fills it instead of showing an impossible number.
+    mrp = part["mrp_sales"].to_numpy()
+    valid = np.isfinite(filled) & (filled >= 0) & (filled <= mrp + 1e-6)
+    df.loc[part_mask, "gross_sales"] = np.where(valid, filled, np.nan)
     return df
 
 

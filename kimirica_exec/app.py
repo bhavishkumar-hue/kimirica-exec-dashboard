@@ -126,8 +126,20 @@ with st.container(key="filters"):
     with f3:
         compare = st.segmented_control("Compare with", list(M.COMPARES), default="Previous period",
                                        key="compare") or "Previous period"
-        cmp_start_custom = cmp_end_custom = None
-        if compare == "Custom":
+    with f4:
+        sel_channels = st.multiselect("Channels", channel_options, placeholder="All channels", key="channels")
+    with f5:
+        if category_options:
+            sel_categories = st.multiselect("Categories", category_options, placeholder="All categories",
+                                            key="categories")
+        else:
+            sel_categories = []
+
+    cmp_start_custom = cmp_end_custom = None
+    if compare == "Custom":
+        # Its own row, not squeezed into f3 -- keeps the main row's columns a uniform height.
+        _, cc, _ = st.columns([2.4, 2.0, 5.2])
+        with cc:
             span = (end_ts - start_ts).days + 1
             cmp_default_end = min(start_ts.date() - dt.timedelta(days=1), data.max_date)
             cmp_default = st.session_state.get(
@@ -139,14 +151,6 @@ with st.container(key="filters"):
             if isinstance(cmp_picked, (tuple, list)) and len(cmp_picked) == 2:
                 st.session_state["cmp_custom_valid"] = (cmp_picked[0], cmp_picked[1])
             cmp_start_custom, cmp_end_custom = st.session_state.get("cmp_custom_valid", cmp_default)
-    with f4:
-        sel_channels = st.multiselect("Channels", channel_options, placeholder="All channels", key="channels")
-    with f5:
-        if category_options:
-            sel_categories = st.multiselect("Categories", category_options, placeholder="All categories",
-                                            key="categories")
-        else:
-            sel_categories = []
 
 scope = sel_channels or channel_options
 P = M.build_periods(start_ts, end_ts, data.channel_last_date, mode=mode, compare=compare,
