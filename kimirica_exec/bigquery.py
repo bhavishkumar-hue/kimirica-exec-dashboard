@@ -35,6 +35,7 @@ class DashboardData:
     ads: pd.DataFrame | None             # date x channel (channel may be None), ad_spend
     targets: pd.DataFrame | None         # date x channel, daily AOP target and achieved revenue
     aop: pd.DataFrame | None             # month x channel, monthly AOP plan
+    website_ebo_orders: pd.DataFrame | None  # date x channel (Website/EBO only), authoritative orders
     channel_last_date: dict[str, dt.date]
     est_meta: dict
     spans: dict                          # source -> (first date with data, last date with data)
@@ -141,6 +142,10 @@ def _prepare_ads(df):
 
 def _prepare_targets(df):
     return _prep_common(df, ["target_sales", "achieved_sales"])
+
+
+def _prepare_orders(df):
+    return _prep_common(df, ["orders"])
 
 
 _MONTHS = {m.lower(): i for i, m in enumerate(calendar.month_abbr) if m}
@@ -298,6 +303,11 @@ def fetch_aop_raw() -> pd.DataFrame:
     return _run(queries.aop_sql(), {})
 
 
+@st.cache_data(ttl=config.TTL_SIDE_TABLES, show_spinner=False)
+def fetch_website_ebo_orders(start: dt.date, end: dt.date) -> pd.DataFrame:
+    return _prepare_orders(_run(queries.orders_sql(), _dates(start, end)))
+
+
 @st.cache_data(show_spinner=False, max_entries=4)
 def combine(version: str, _sales: pd.DataFrame, _weekly: pd.DataFrame | None, max_date: dt.date):
     """Fill gross (weekly table, then estimates) and derive net sales. Cached per data version."""
@@ -373,12 +383,21 @@ def load_dashboard_data() -> DashboardData:
     # the same channel-level detail: aop = _prepare_aop(fetch_aop_raw()).
     aop = hardcoded_aop()
 
+    website_ebo_orders = None
+    if config.BQ_ORDERS_TABLE:
+        try:
+            website_ebo_orders = fetch_website_ebo_orders(hist_start, load_to)
+        except Exception as exc:
+            notes.append(f"Website/EBO order table could not be read ({exc}); "
+                         "using Executive_Sales_Master's own orders instead.")
+
     version = f"bq|{max_date}|{fetched_at.isoformat()}|{len(weekly) if weekly is not None else 0}"
     df, est_meta = combine(version, sales, weekly, max_date)
     spans = _spans(sales, weekly, ads, targets)
 
     return DashboardData(
-        df=df, ads=ads, targets=targets, aop=aop, channel_last_date=last_dates, est_meta=est_meta, spans=spans,
+        df=df, ads=ads, targets=targets, aop=aop, website_ebo_orders=website_ebo_orders,
+        channel_last_date=last_dates, est_meta=est_meta, spans=spans,
         max_date=max_date, min_date=hist_start,
         table_modified=modified.astimezone(IST) if modified else None,
         fetched_at=fetched_at, source="bigquery", notes=notes,
@@ -401,7 +420,8 @@ def _load_demo() -> DashboardData:
     max_date = max(last_dates.values())
     df, est_meta = combine(f"demo|{max_date}", sales, weekly, max_date)
     return DashboardData(
-        df=df, ads=ads, targets=targets, aop=aop, channel_last_date=last_dates, est_meta=est_meta,
+        df=df, ads=ads, targets=targets, aop=aop, website_ebo_orders=None,
+        channel_last_date=last_dates, est_meta=est_meta,
         spans=_spans(sales, weekly, ads, targets),
         max_date=max_date, min_date=df["date"].min().date(),
         table_modified=now.replace(hour=7, minute=45, second=0, microsecond=0),

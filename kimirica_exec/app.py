@@ -39,8 +39,10 @@ def cached_category(version: str, channels: tuple, categories: tuple, _df: pd.Da
 
 
 @st.cache_data(show_spinner=False, max_entries=32)
-def cached_channel_daily(version: str, channels: tuple, categories: tuple, _df: pd.DataFrame) -> pd.DataFrame:
-    return M.channel_daily(M.filter_frame(_df, list(channels), list(categories)), list(categories))
+def cached_channel_daily(version: str, channels: tuple, categories: tuple, _df: pd.DataFrame,
+                         _orders_override: pd.DataFrame | None = None) -> pd.DataFrame:
+    return M.channel_daily(M.filter_frame(_df, list(channels), list(categories)), list(categories),
+                           orders_override=_orders_override)
 
 
 def panel_header(title: str, subtitle: str | None = None, ratio=(3, 2)):
@@ -157,7 +159,7 @@ scope = sel_channels or channel_options
 P = M.build_periods(start_ts, end_ts, data.channel_last_date, mode=mode, compare=compare,
                     cmp_start=cmp_start_custom, cmp_end=cmp_end_custom)
 cd_raw = M.attach_targets(
-    cached_channel_daily(version, tuple(sel_channels), tuple(sel_categories), data.df),
+    cached_channel_daily(version, tuple(sel_channels), tuple(sel_categories), data.df, data.website_ebo_orders),
     data.targets, sel_channels, sel_categories,
 )
 cd = M.add_lag(cd_raw, P)

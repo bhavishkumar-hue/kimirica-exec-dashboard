@@ -92,7 +92,7 @@ def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, expected: float = 
     df = tbl[cols].reset_index(drop=True)
     sty = _styler(df, raw, {"Discount": False, "MoM": True, "Ach.": False}, expected)
     st.dataframe(sty, hide_index=True, width="stretch", placeholder="—",
-                 height=min(38 + 35 * len(df), 560), column_config=_col_config(df, label),
+                 height=min(38 + 35 * len(df), 750), column_config=_col_config(df, label),
                  key=f"tbl_{key_col}_{raw}")
 
 

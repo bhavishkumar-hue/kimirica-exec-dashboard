@@ -94,6 +94,12 @@ BQ_AD_TABLE = _tbl("BQ_AD_TABLE", "Executive_Spends_Master")
 BQ_TARGET_TABLE = _tbl("BQ_TARGET_TABLE", "AOP_Daily_Target_vs_Achievement")
 # Monthly AOP plan (product x channel x month); month and year AOP totals come from here.
 BQ_AOP_TABLE = _tbl("BQ_AOP_TABLE", "AOP_targets")
+# Raw Shopify order-line table -- the only trustworthy source of Website / EBO(Stores) order
+# counts. Executive_Sales_Master's own `orders` column is per category row, so summing it across
+# a channel double- (or N-) counts any order whose lines span more than one category. Leave blank
+# to fall back to Executive_Sales_Master's orders for these two channels.
+BQ_ORDERS_TABLE = _tbl("BQ_ORDERS_TABLE", "shopify_kimirica.master_orders_flat")
+AUTHORITATIVE_ORDER_CHANNELS = ["Website", "EBO(Stores)"]
 
 
 def fqn(table: str) -> str:

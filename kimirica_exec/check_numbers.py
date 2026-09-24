@@ -75,7 +75,7 @@ def main(start: dt.date, end: dt.date) -> None:
     # ---- 2. the same window as the dashboard computes it ----------------------------------
     data = B.load_dashboard_data()
     P = M.build_periods(end, data.channel_last_date)
-    cd = M.add_lag(M.attach_targets(M.channel_daily(data.df, []), data.targets, [], []), P)
+    cd = M.add_lag(M.attach_targets(M.channel_daily(data.df, [], data.website_ebo_orders), data.targets, [], []), P)
     win = cd[(cd["date"] >= pd.Timestamp(start)) & (cd["date"] <= pd.Timestamp(end))]
     dash = win.groupby("channel").agg(
         mrp_dash=("mrp_sales", lambda x: x.sum(min_count=1)),

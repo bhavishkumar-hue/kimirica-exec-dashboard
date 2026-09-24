@@ -45,7 +45,13 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   actuals, per category) -> MRP x (1 - 11%) if the channel has no gross history.
 - **Net sales** = gross / 1.18.
 - **AOV:** orders where the sales master has them; elsewhere quantity counts as orders, so AOV = ASP.
-  Orders data is unreliable; no orders column is shown.
+  Orders data is unreliable; no orders column is shown. **Website and EBO(Stores) never use
+  Executive_Sales_Master's own `orders`** -- it's per category row, so summing it across a channel
+  double-counts any order whose lines span more than one category. Their orders come straight from
+  `shopify_kimirica.master_orders_flat` (`BQ_ORDERS_TABLE`), one row per real order (`metrics.
+  channel_daily`'s `orders_override`, wired from `bigquery.fetch_website_ebo_orders`). Only applies
+  to the unfiltered, whole-channel view; a single-category slice keeps its own category-allocated
+  orders, which are already correct for that narrower case.
 - **Growth** is measured on MRP sales everywhere.
 - **AOP is on MRP.** Year AOP = `SUM(Revenue) WHERE Financial_Year = '2026-27'` across all channels
   (unless filtered). Month AOP = that month's Revenue. **Achieved = MRP sales, channel-wise, from

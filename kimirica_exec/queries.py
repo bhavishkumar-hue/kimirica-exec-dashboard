@@ -105,6 +105,36 @@ GROUP BY date, channel
 
 
 
+def orders_sql() -> str:
+    """
+    Authoritative Website / EBO(Stores) daily order counts, straight from the raw Shopify order
+    lines -- one row per real order, never per category, so an order with lines in several
+    categories still counts once. A freebie line (original_unit_price < 10) doesn't disqualify the
+    order, but an order with ONLY freebie lines is excluded entirely, matching how Executive_Sales_
+    Master itself defines an eligible order.
+    """
+    return f"""
+WITH order_level AS (
+  SELECT
+    DATE(order_date) AS sales_date,
+    CAST(order_id AS STRING) AS order_id,
+    CASE WHEN is_pos = TRUE THEN 'EBO(Stores)' ELSE 'Website' END AS channel,
+    MAX(CASE WHEN original_unit_price >= 10 THEN 1 ELSE 0 END) AS has_non_freebie
+  FROM `{c.fqn(c.BQ_ORDERS_TABLE)}`
+  WHERE DATE(order_date) BETWEEN @start AND @end
+  GROUP BY DATE(order_date), CAST(order_id AS STRING),
+           CASE WHEN is_pos = TRUE THEN 'EBO(Stores)' ELSE 'Website' END
+)
+SELECT
+  sales_date AS date,
+  channel,
+  COUNT(DISTINCT order_id) AS orders
+FROM order_level
+WHERE has_non_freebie = 1
+GROUP BY date, channel
+""".strip()
+
+
 def aop_sql() -> str:
     """Monthly AOP by channel. Months are parsed in Python since the text format varies."""
     return f"""

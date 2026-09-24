@@ -386,7 +386,8 @@ def prepare_category_frame(df: pd.DataFrame) -> pd.DataFrame:
     return add_aov_columns(d, use_orders=config.AGG_ORDERS == "SUM")
 
 
-def channel_daily(df: pd.DataFrame, categories: list[str]) -> pd.DataFrame:
+def channel_daily(df: pd.DataFrame, categories: list[str],
+                  orders_override: pd.DataFrame | None = None) -> pd.DataFrame:
     """Roll category rows up to date x channel, honouring the orders/target aggregation mode."""
     g = df.groupby(["date", "channel"], sort=False)
     out = g[ADDITIVE].sum(min_count=1)
@@ -400,6 +401,17 @@ def channel_daily(df: pd.DataFrame, categories: list[str]) -> pd.DataFrame:
         out["target_sales"] = np.nan
         if not (len(categories) == 1 and config.AGG_ORDERS == "SUM"):
             out["orders"] = np.nan
+    elif orders_override is not None and not orders_override.empty:
+        # Executive_Sales_Master's own orders is per category row, so summing it across a channel
+        # double-counts any order whose lines span more than one category (this is what was
+        # hammering Website / EBO(Stores) AOV). Replace it with the authoritative count straight
+        # from the raw order lines -- only for the unfiltered, whole-channel view; a single-category
+        # slice above already falls back to its own (correct) category-allocated orders.
+        auth = orders_override.rename(columns={"orders": "_auth_orders"})[["date", "channel", "_auth_orders"]]
+        out = out.merge(auth, on=["date", "channel"], how="left")
+        mask = out["channel"].isin(config.AUTHORITATIVE_ORDER_CHANNELS)
+        out.loc[mask, "orders"] = out.loc[mask, "_auth_orders"]
+        out = out.drop(columns=["_auth_orders"])
     out["group"] = out["channel"].map(config.CHANNEL_GROUPS).fillna("Other")
     return add_aov_columns(out)
 
