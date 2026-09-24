@@ -27,6 +27,11 @@ def _ratio(num: pd.Series, den: pd.Series) -> float:
     return float(num.sum() / d) if d and d > 0 else np.nan
 
 
+def _default_discount(channel) -> float:
+    """A channel's no-history fallback discount: CHANNEL_DEFAULT_DISCOUNT override, else DEFAULT_DISCOUNT."""
+    return config.CHANNEL_DEFAULT_DISCOUNT.get(channel, config.DEFAULT_DISCOUNT)
+
+
 def _from_weekly(df: pd.DataFrame, weekly: pd.DataFrame) -> pd.DataFrame:
     """Fill empty gross from the weekly table, matching on category when both have it."""
     channels = set(weekly["channel"].dropna())
@@ -97,7 +102,7 @@ def _fill_prior_fy_gross(df: pd.DataFrame, max_date) -> pd.DataFrame:
     for ch in df.loc[gap, "channel"].dropna().unique():
         rows = gap & (df["channel"] == ch)
         rate = df.loc[rows, "_ty_month"].map(lambda p: disc_by_month.get((ch, p))).astype(float)
-        rate = rate.fillna(avg_discount.get(ch, config.DEFAULT_DISCOUNT))
+        rate = rate.fillna(avg_discount.get(ch, _default_discount(ch)))
         df.loc[rows, "gross_sales"] = df.loc[rows, "mrp_sales"] * (1 - rate.to_numpy())
         df.loc[rows, "est"] = 1.0
     return df.drop(columns=["_month", "_ty_month"])
@@ -131,7 +136,7 @@ def fill_gross(sales: pd.DataFrame, weekly: pd.DataFrame | None,
                         cat_rate[cat] = r
         else:
             ch_rate, cat_rate = np.nan, {}
-        default_rate = 1 - config.DEFAULT_DISCOUNT
+        default_rate = 1 - _default_discount(ch)
         if np.isnan(ch_rate):
             ch_rate = default_rate
 

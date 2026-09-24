@@ -336,7 +336,7 @@ def build_periods(start, end=None, last_dates: dict | None = None,
         c_start, c_end = pd.Timestamp(cmp_start).normalize(), pd.Timestamp(cmp_end).normalize()
         if c_start > c_end:
             c_start, c_end = c_end, c_start
-        cmp_start, cmp_end, label, short = c_start, c_end, "vs custom period", "Custom"
+        cmp_start, cmp_end, label, short = c_start, c_end, "vs the comparison period", "Comparison period"
     else:
         cmp_start, cmp_end, label, short = _comparison(s_, a, mode, compare)
     return Periods(
@@ -581,7 +581,7 @@ def kpi_snapshot(cd: pd.DataFrame, ads: pd.DataFrame | None, P: Periods,
         s["month_target"], s["month_target_estimated"] = plan_month, False
     else:
         s["month_target"], s["month_target_estimated"] = _target_total(cd, P.mtd_start, P.month_end, P.days_in_month)
-    s["month_achieved"] = _sum(month_w[month_w["target_sales"].notna()], "ach_metric")
+    s["month_achieved"] = _sum(month_w, "ach_metric")
 
     s["projection"] = _lagged_projection(month_w, P, config.TARGET_METRIC)
     s["target_projection"] = _lagged_projection(month_w[month_w["ach_metric"].notna()], P, "ach_metric")
@@ -590,7 +590,7 @@ def kpi_snapshot(cd: pd.DataFrame, ads: pd.DataFrame | None, P: Periods,
     s["month_ach"] = ratio(s["month_achieved"], s["month_target"])
     # year pacing (financial year to date vs the full-year AOP)
     ytd_w = window(cd, P.ytd_start, P.as_of)
-    s["year_actual"] = _sum(ytd_w[ytd_w["target_sales"].notna()], "ach_metric")
+    s["year_actual"] = _sum(ytd_w, "ach_metric")
     plan_year = aop_for(aop, channels or [], fy_start=P.ytd_start.year)
     if plan_year is not None:
         s["year_target"], s["year_target_estimated"] = plan_year, False
@@ -641,6 +641,41 @@ def _common_columns(out: pd.DataFrame, mtd: pd.DataFrame, lmtd: pd.DataFrame) ->
     out["LMTD AOV"] = _ratio_col(lmtd["aov_num"], lmtd["aov_den"])
     out["aov_proxy"] = mtd["aov_proxy"].fillna(0) > 0
     out["est"] = mtd["est"].fillna(0) > 0
+
+
+TOTAL_LABEL = "Total"
+
+
+def add_totals_row(out: pd.DataFrame, label_col: str) -> pd.DataFrame:
+    """
+    Append a Total row summing every channel/category currently in the table. Display-only: called
+    from components/tables.py right before rendering, never on the value returned by channel_table /
+    category_table, so charts, insights and the watchlist never see "Total" as if it were a channel.
+    Built from the final table alone (additive columns re-summed, ratios re-derived from those sums)
+    so it needs nothing beyond what's already there. AOV/ASP are left blank -- a blended average
+    isn't reconstructable from the display table, and isn't summed to avoid a misleading number.
+    """
+    if out.empty:
+        return out
+    s = lambda col: out[col].sum(min_count=1) if col in out else np.nan  # noqa: E731
+    mrp, gross, lmtd = s("MRP sales"), s("Gross sales"), s("LMTD")
+    total = {
+        label_col: TOTAL_LABEL,
+        "MRP sales": mrp, "Gross sales": gross, "Net sales": s("Net sales"),
+        "Discount": ratio(mrp - gross, mrp) if not (is_na(mrp) or is_na(gross)) else np.nan,
+        "MoM": pct(mrp, lmtd),
+        "Share": 1.0 if not is_na(mrp) else np.nan,
+        "LMTD": lmtd,
+        "Δ vs LMTD": None if is_na(mrp) or is_na(lmtd) else mrp - lmtd,
+        "Orders": s("Orders"), "LMTD orders": s("LMTD orders"),
+    }
+    if "Target" in out:
+        target = s("Target")
+        total["Target"] = target
+        total["Ach."] = ratio(out["Ach."].mul(out["Target"]).sum(min_count=1), target) \
+            if out["Target"].notna().any() else None
+    total = {k: v for k, v in total.items() if k in out.columns}
+    return pd.concat([out, pd.DataFrame([total])], ignore_index=True)
 
 
 def channel_table(cd: pd.DataFrame, P: Periods, key: str = "channel",

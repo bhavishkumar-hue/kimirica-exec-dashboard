@@ -88,6 +88,7 @@ def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, expected: float = 
     cols = [key_col, "MRP sales", "Gross sales", "Net sales", "Discount", "AOV", "ASP", "MoM", "Target", "Ach."]
     if tbl["Target"].isna().all():
         cols = [c for c in cols if c not in ("Target", "Ach.")]
+    tbl = M.add_totals_row(tbl, key_col)
     df = tbl[cols].reset_index(drop=True)
     sty = _styler(df, raw, {"Discount": False, "MoM": True, "Ach.": False}, expected)
     st.dataframe(sty, hide_index=True, width="stretch", placeholder="—",
@@ -97,6 +98,7 @@ def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, expected: float = 
 
 def category_table(ct: pd.DataFrame, raw: bool) -> None:
     cols = ["Category", "MRP sales", "Gross sales", "Net sales", "Discount", "AOV", "ASP", "MoM", "Share"]
+    ct = M.add_totals_row(ct, "Category")
     df = ct[cols].reset_index(drop=True)
     sty = _styler(df, raw, {"Discount": False, "MoM": True, "Share": False})
     st.dataframe(sty, hide_index=True, width="stretch", placeholder="—",

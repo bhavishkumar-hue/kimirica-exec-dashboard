@@ -174,6 +174,9 @@ EXPECTED_LAG_DAYS: dict[str, int] = {"Amazon-VC": 1}
 # -> daily MRP x (1 - DEFAULT_DISCOUNT) when a channel has no discount history at all.
 EST_LOOKBACK_DAYS = int(_get("EST_LOOKBACK_DAYS", 28))
 DEFAULT_DISCOUNT = float(_get("DEFAULT_DISCOUNT", 0.11))
+# Per-channel override of DEFAULT_DISCOUNT, for channels whose no-history fallback shouldn't use
+# the general 11% (owner-specified).
+CHANNEL_DEFAULT_DISCOUNT: dict[str, float] = {"FK-Minutes": 0.15}
 # Channels refreshed weekly; used only to flag an overdue weekly load.
 WEEKLY_GROSS_CHANNELS = ["Blinkit", "Zepto", "Swiggy", "FK-Minutes", "Myntra", "Nykaa", "Tira"]
 WEEKLY_OVERDUE_DAYS = 9

@@ -109,19 +109,19 @@ def target_chart(tf: pd.DataFrame, height: int | None = None, expected: float = 
     _show(fig, "target")
 
 
-def category_chart(ct: pd.DataFrame) -> None:
+def category_chart(ct: pd.DataFrame, P: M.Periods) -> None:
     col = M.METRIC_LABELS[config.GROWTH_METRIC]
     d = ct.sort_values(col)
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        y=d["Category"], x=d[col], name=f"{col}, MTD", orientation="h",
+        y=d["Category"], x=d[col], name=f"{col}, this period", orientation="h",
         marker=dict(color=T.ACCENT, line=dict(width=0)),
         text=[f"\u2003{M.fmt_inr(v)}  {M.fmt_pct(g)}" for v, g in zip(d[col], d["MoM"])],
         textposition="outside", cliponaxis=False, textfont=dict(size=11, color=T.MUTED),
         customdata=[M.fmt_inr_full(v) for v in d[col]], hovertemplate="%{customdata}",
     ))
     fig.add_trace(go.Scatter(
-        y=d["Category"], x=d["LMTD"], name="LMTD", mode="markers",
+        y=d["Category"], x=d["LMTD"], name=P.cmp_short, mode="markers",
         marker=dict(symbol="line-ns", size=18, line=dict(width=2.5, color=T.INK)),
         customdata=[M.fmt_inr_full(v) for v in d["LMTD"]], hovertemplate="%{customdata}",
     ))

@@ -231,7 +231,7 @@ if data.has_category:
             empty("No category sales for this selection.")
         else:
             tables.category_table(ct, raw_cat)
-            charts.category_chart(ct)
+            charts.category_chart(ct, P)
 
 # --------------------------------------------------------------------------- #
 # 4. Growth drivers and target vs actual
