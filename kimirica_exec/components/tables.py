@@ -83,26 +83,36 @@ def _col_config(df: pd.DataFrame, first_label: str) -> dict:
     return cfg
 
 
+def _render(df: pd.DataFrame, raw: bool, pct_cols: dict[str, bool], label: str, key: str,
+           expected: float = 1.0, max_height: int = 750) -> None:
+    sty = _styler(df, raw, pct_cols, expected)
+    st.dataframe(sty, hide_index=True, width="stretch", placeholder="—",
+                 height=min(38 + 35 * len(df), max_height), column_config=_col_config(df, label), key=key)
+
+
 def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, expected: float = 1.0) -> None:
     label = "Channel" if key_col == "channel" else "Channel group"
     cols = [key_col, "MRP sales", "Gross sales", "Net sales", "Discount", "AOV", "ASP", "MoM", "Target", "Ach."]
     if tbl["Target"].isna().all():
         cols = [c for c in cols if c not in ("Target", "Ach.")]
-    tbl = M.add_totals_row(tbl, key_col)
+    pct_cols = {"Discount": False, "MoM": True, "Ach.": False}
     df = tbl[cols].reset_index(drop=True)
-    sty = _styler(df, raw, {"Discount": False, "MoM": True, "Ach.": False}, expected)
-    st.dataframe(sty, hide_index=True, width="stretch", placeholder="—",
-                 height=min(38 + 35 * len(df), 750), column_config=_col_config(df, label),
-                 key=f"tbl_{key_col}_{raw}")
+    _render(df, raw, pct_cols, label, f"tbl_{key_col}_{raw}", expected)
+    # The Total row is a second, separate one-row table, not part of the sortable one above --
+    # st.dataframe's interactive column sort is a client-side grid feature with no way to pin a
+    # row, so a Total row inside the sortable table would itself get sorted into the middle.
+    total = M.add_totals_row(tbl, key_col)
+    total = total[total[key_col] == M.TOTAL_LABEL][cols].reset_index(drop=True)
+    _render(total, raw, pct_cols, label, f"tbl_{key_col}_{raw}_total", expected, max_height=73)
 
 
 def category_table(ct: pd.DataFrame, raw: bool) -> None:
     # No AOV here: an order spans categories, so a per-category order count (and the AOV built on
     # it) is not a real number. ASP (gross / units) is fine at category grain and stays.
     cols = ["Category", "MRP sales", "Gross sales", "Net sales", "Discount", "ASP", "MoM", "Share"]
-    ct = M.add_totals_row(ct, "Category")
+    pct_cols = {"Discount": False, "MoM": True, "Share": False}
     df = ct[cols].reset_index(drop=True)
-    sty = _styler(df, raw, {"Discount": False, "MoM": True, "Share": False})
-    st.dataframe(sty, hide_index=True, width="stretch", placeholder="—",
-                 height=min(38 + 35 * len(df), 460), column_config=_col_config(df, "Category"),
-                 key=f"cat_{raw}")
+    _render(df, raw, pct_cols, "Category", f"cat_{raw}", max_height=460)
+    total = M.add_totals_row(ct, "Category")
+    total = total[total["Category"] == M.TOTAL_LABEL][cols].reset_index(drop=True)
+    _render(total, raw, pct_cols, "Category", f"cat_{raw}_total", max_height=73)

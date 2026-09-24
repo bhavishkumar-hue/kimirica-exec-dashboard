@@ -119,6 +119,12 @@ def _prep_common(df: pd.DataFrame, numeric: list[str]) -> pd.DataFrame:
     df.loc[named, "channel"] = df.loc[named, "channel"].astype(str).str.strip().map(canonical_channel)
     if "category" in df:
         df["category"] = df["category"].astype(object).where(df["category"].notna(), None)
+        # "Unmapped" is a source-side placeholder for "couldn't be categorised", not a real
+        # category (see notebook: COALESCE(pm.`Matl Group`, 'Unmapped')) -- treat it as no
+        # category everywhere, same as a genuine NULL, so it never falsely fails to match a real
+        # category elsewhere (e.g. the weekly-gross join in estimates._from_weekly).
+        unmapped = df["category"].astype(str).str.strip().str.casefold() == "unmapped"
+        df.loc[unmapped, "category"] = None
         df = df[~df["category"].map(is_excluded_category)]
     for col in numeric:
         if col not in df:

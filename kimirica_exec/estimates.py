@@ -5,7 +5,8 @@ MRP sales are daily and authoritative for every channel. Gross sales are taken i
 
   1. Sales master, wherever it has a value.
   2. Weekly gross table (day grain, refreshed weekly), for rows the sales master leaves empty.
-     A channel-level weekly table is spread across category rows by MRP share.
+     Matched by category where the weekly table has a real one; a channel-level (or "Unmapped")
+     weekly figure is spread across that day's category rows by MRP share instead.
   3. Estimated: daily MRP x (1 - discount), where the discount is gross / MRP over the
      EST_LOOKBACK_DAYS of actuals before the channel's last actual day, per category when possible.
   4. Estimated with DEFAULT_DISCOUNT (11%) when a channel has no actuals to learn from.
@@ -32,34 +33,53 @@ def _default_discount(channel) -> float:
     return config.CHANNEL_DEFAULT_DISCOUNT.get(channel, config.DEFAULT_DISCOUNT)
 
 
+def _clamp_gross(filled: np.ndarray, mrp: np.ndarray) -> np.ndarray:
+    """Gross can never exceed MRP (discount is never negative) or be negative. A weekly-table row
+    that breaks this is bad data, not a real figure -- treat it as not-loaded so the discount-
+    estimate fallback fills it instead of showing an impossible number."""
+    valid = np.isfinite(filled) & (filled >= 0) & (filled <= mrp + 1e-6)
+    return np.where(valid, filled, np.nan)
+
+
 def _from_weekly(df: pd.DataFrame, weekly: pd.DataFrame) -> pd.DataFrame:
-    """Fill empty gross from the weekly table, matching on category when both have it."""
+    """
+    Fill empty gross from the weekly table, in two passes:
+      1. Match date x channel x category directly, wherever the weekly table actually has that
+         category (channels like Blinkit are split by real category throughout).
+      2. Whatever's left is a channel-level (or partly-unmapped) weekly figure -- spread it by MRP
+         share across that date x channel's still-empty category rows.
+    Some channels' weekly rows are only ever tagged "Unmapped" (normalized to NULL category at
+    load) even though the sales master itself has real categories for them -- a single all-or-
+    nothing category match would then never fire for those rows, silently losing the whole
+    channel's weekly gross (this is what was happening to Myntra, and partly to Nykaa/Tira).
+    Running both passes handles a channel that's 100% real category, 100% unmapped, or a mix.
+    """
     channels = set(weekly["channel"].dropna())
     part_mask = df["channel"].isin(channels) & df["gross_sales"].isna()
     if not part_mask.any():
         return df
-    part = df[part_mask]
-
-    by_category = weekly["category"].notna().any() and part["category"].notna().any()
-    keys = ["date", "channel", "category"] if by_category else ["date", "channel"]
-    w = weekly.groupby(keys, dropna=False)["gross_sales"].sum(min_count=1)
-    joined = part.join(w.rename("gross_w"), on=keys)
-
-    if by_category:
-        share = pd.Series(1.0, index=part.index)
-    else:
-        grp = part.groupby(["date", "channel"])["mrp_sales"]
-        total = grp.transform("sum")
-        share = (part["mrp_sales"] / total.where(total > 0)).where(grp.transform("size") > 1, 1.0)
-
     df = df.copy()
-    filled = joined["gross_w"].to_numpy() * share.to_numpy()
-    # Gross can never exceed MRP (discount is never negative) or be negative. A hand-entered weekly
-    # row that breaks this is bad data, not a real figure -- treat it as not-loaded so the
-    # discount-estimate fallback below fills it instead of showing an impossible number.
-    mrp = part["mrp_sales"].to_numpy()
-    valid = np.isfinite(filled) & (filled >= 0) & (filled <= mrp + 1e-6)
-    df.loc[part_mask, "gross_sales"] = np.where(valid, filled, np.nan)
+
+    # Pass 1: real-category weekly rows match a category row directly.
+    real_w = weekly[weekly["category"].notna()]
+    part = df[part_mask]
+    if not real_w.empty and part["category"].notna().any():
+        w_cat = real_w.groupby(["date", "channel", "category"], dropna=False)["gross_sales"].sum(min_count=1)
+        matched = part.join(w_cat.rename("gross_w"), on=["date", "channel", "category"])["gross_w"].to_numpy()
+        df.loc[part_mask, "gross_sales"] = _clamp_gross(matched, part["mrp_sales"].to_numpy())
+
+    # Pass 2: whatever the weekly table couldn't attribute to a category is a channel-day total;
+    # spread it across that date x channel's rows that are STILL empty after pass 1.
+    still_gap = df["channel"].isin(channels) & df["gross_sales"].isna()
+    w_chan = weekly[weekly["category"].isna()].groupby(["date", "channel"])["gross_sales"].sum(min_count=1)
+    if still_gap.any() and w_chan.notna().any():
+        rem = df[still_gap]
+        joined = rem.join(w_chan.rename("gross_w"), on=["date", "channel"])
+        grp = rem.groupby(["date", "channel"])["mrp_sales"]
+        total = grp.transform("sum")
+        share = (rem["mrp_sales"] / total.where(total > 0)).where(grp.transform("size") > 1, 1.0)
+        filled = (joined["gross_w"] * share).to_numpy()
+        df.loc[still_gap, "gross_sales"] = _clamp_gross(filled, rem["mrp_sales"].to_numpy())
     return df
 
 

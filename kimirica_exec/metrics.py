@@ -383,16 +383,13 @@ def add_aov_columns(df: pd.DataFrame, use_orders: bool = True) -> pd.DataFrame:
 
 def prepare_category_frame(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Rows with a real category, for the category-performance table/chart only. "Unmapped" (a
-    product that failed the source's own category mapping, not a real category) is dropped here
-    too -- but only from this category-level view. Its MRP/gross stay in the channel-level totals
-    (KPI cards, channel table) exactly like a NULL category already does; this only keeps it out of
-    the category breakdown and its Total row.
+    Rows with a real category, for the category-performance table/chart only ("Unmapped" -- a
+    product that failed the source's own category mapping -- is normalized to NULL at load, in
+    bigquery._prep_common, so it's already excluded by the notna() check here). Its MRP/gross stay
+    in the channel-level totals (KPI cards, channel table); this only keeps it out of the category
+    breakdown and its Total row.
     """
-    no_cat = df["category"].isna()
-    unmapped = df["category"].astype(str).str.strip().str.casefold() == "unmapped"
-    d = df[~no_cat & ~unmapped]
-    return add_aov_columns(d, use_orders=config.AGG_ORDERS == "SUM")
+    return add_aov_columns(df[df["category"].notna()], use_orders=config.AGG_ORDERS == "SUM")
 
 
 def channel_daily(df: pd.DataFrame, categories: list[str],
