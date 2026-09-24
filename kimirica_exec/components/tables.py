@@ -97,7 +97,9 @@ def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, expected: float = 
 
 
 def category_table(ct: pd.DataFrame, raw: bool) -> None:
-    cols = ["Category", "MRP sales", "Gross sales", "Net sales", "Discount", "AOV", "ASP", "MoM", "Share"]
+    # No AOV here: an order spans categories, so a per-category order count (and the AOV built on
+    # it) is not a real number. ASP (gross / units) is fine at category grain and stays.
+    cols = ["Category", "MRP sales", "Gross sales", "Net sales", "Discount", "ASP", "MoM", "Share"]
     ct = M.add_totals_row(ct, "Category")
     df = ct[cols].reset_index(drop=True)
     sty = _styler(df, raw, {"Discount": False, "MoM": True, "Share": False})
