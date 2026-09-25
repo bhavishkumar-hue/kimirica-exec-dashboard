@@ -101,14 +101,25 @@ def _fmt_total_value(col: str, v, raw: bool) -> str:
 
 
 def _total_strip(total_row, cols: list[str], raw: bool) -> None:
-    """A single-line 'Total: MRP ₹x  Gross ₹y  ...' bar -- deliberately not another table, so it
-    can't be confused with a second header, and can never be reordered by the sortable grid above."""
-    items = "".join(
-        f'<span class="tbl-total-item"><b>{T.esc(c)}</b> {T.esc(_fmt_total_value(c, total_row[c], raw))}</span>'
+    """A slim summary bar directly under the table -- deliberately not another table, so it can
+    never be reordered by the sortable grid above, and can't be mistaken for a repeated header."""
+    cells = "".join(
+        f'<div class="tbl-total-cell"><span>{T.esc(c)}</span>{T.esc(_fmt_total_value(c, total_row[c], raw))}</div>'
         for c in cols[1:]
     )
-    st.markdown(f'<div class="tbl-total-strip"><span class="tbl-total-label">Total</span>{items}</div>',
-               unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="tbl-total-strip"><div class="tbl-total-cell tbl-total-label-cell">'
+        f'<span>&nbsp;</span>Total</div>{cells}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _table_with_total(df: pd.DataFrame, sty, cols: list[str], raw: bool, height: int,
+                      col_config: dict, key: str, total_row) -> None:
+    with st.container(key=f"{key}_wrap"):
+        st.dataframe(sty, hide_index=True, width="stretch", placeholder="—",
+                    height=height, column_config=col_config, key=key)
+        _total_strip(total_row, cols, raw)
 
 
 def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, expected: float = 1.0) -> None:
@@ -118,11 +129,9 @@ def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, expected: float = 
         cols = [c for c in cols if c not in ("Target", "Ach.")]
     df = tbl[cols].reset_index(drop=True)
     sty = _styler(df, raw, {"Discount": False, "MoM": True, "Ach.": False}, expected)
-    st.dataframe(sty, hide_index=True, width="stretch", placeholder="—",
-                 height=min(38 + 35 * len(df), 560), column_config=_col_config(df, label),
-                 key=f"tbl_{key_col}_{raw}")
     total_row = M.add_totals_row(tbl, key_col).iloc[-1]
-    _total_strip(total_row, cols, raw)
+    _table_with_total(df, sty, cols, raw, min(38 + 35 * len(df), 560), _col_config(df, label),
+                      f"tbl_{key_col}_{raw}", total_row)
 
 
 def category_table(ct: pd.DataFrame, raw: bool) -> None:
@@ -131,8 +140,6 @@ def category_table(ct: pd.DataFrame, raw: bool) -> None:
     cols = ["Category", "MRP sales", "Gross sales", "Net sales", "Discount", "ASP", "MoM", "Share"]
     df = ct[cols].reset_index(drop=True)
     sty = _styler(df, raw, {"Discount": False, "MoM": True, "Share": False})
-    st.dataframe(sty, hide_index=True, width="stretch", placeholder="—",
-                 height=min(38 + 35 * len(df), 460), column_config=_col_config(df, "Category"),
-                 key=f"cat_{raw}")
     total_row = M.add_totals_row(ct, "Category").iloc[-1]
-    _total_strip(total_row, cols, raw)
+    _table_with_total(df, sty, cols, raw, min(38 + 35 * len(df), 460), _col_config(df, "Category"),
+                      f"cat_{raw}", total_row)

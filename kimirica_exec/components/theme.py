@@ -115,13 +115,18 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 
 /* tables */
 [data-testid="stDataFrame"] {{ border: 1px solid {LINE}; border-radius: 10px; overflow: hidden; }}
-/* Total row for the channel/category tables: a summary strip directly below the sortable grid,
-   not a row inside it (st.dataframe's column-sort has no way to keep one row pinned). */
-.tbl-total-strip {{ display: flex; flex-wrap: wrap; align-items: baseline; gap: 5px 22px;
-  background: {PAGE}; border: 1px solid {LINE}; border-top: none; border-radius: 0 0 10px 10px;
-  padding: 10px 16px; margin-top: -1px; font-size: 13px; color: {INK}; }}
-.tbl-total-label {{ font-weight: 700; margin-right: 6px; }}
-.tbl-total-item b {{ color: {MUTED}; font-weight: 500; margin-right: 5px; }}
+/* Total row for the channel/category tables: a summary strip directly under the sortable grid, not
+   a row inside it (st.dataframe's column-sort has no way to keep one row pinned). The wrapping
+   container's own gap is tightened so the strip sits right against the table, not a page-section's
+   worth of space below it. */
+div[class*="st-key-tbl_"][class*="_wrap"] [data-testid="stVerticalBlock"],
+div[class*="st-key-cat_"][class*="_wrap"] [data-testid="stVerticalBlock"] {{ gap: 0 !important; }}
+.tbl-total-strip {{ display: flex; background: {SURFACE}; border: 1px solid {LINE}; border-top: 2px solid {INK};
+  border-radius: 0 0 10px 10px; margin-top: 6px; overflow: hidden; }}
+.tbl-total-cell {{ flex: 1 1 0; padding: 8px 14px; text-align: right; font-size: 13.5px; font-weight: 600;
+  color: {INK}; white-space: nowrap; }}
+.tbl-total-cell span {{ display: block; font-size: 11px; font-weight: 500; color: {MUTED}; margin-bottom: 2px; }}
+.tbl-total-label-cell {{ flex: 0 0 auto; min-width: 120px; text-align: left; }}
 .stApp .note {{ font-size: 11.5px; color: {FAINT}; margin: 0; }}
 </style>
 """
