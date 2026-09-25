@@ -41,8 +41,14 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
 - Unloaded days are NULL, never zero. NULL stays NULL end to end (sums use `min_count=1`).
 - **Freebie categories** (Consumables, Freebie, Primary, Uncategorised, any spelling) are dropped at load
   from everything, including MRP. Owner hasn't confirmed whether MRP should keep them.
-- **Gross fallback:** sales master -> weekly table -> MRP x (1 - channel's discount over its last 28 days of
-  actuals, per category) -> MRP x (1 - 11%) if the channel has no gross history.
+- **Gross fallback:** sales master -> weekly table (real category match, else spread by MRP share --
+  "Unmapped" is normalized to no-category at load, so it can't falsely fail to match a real category
+  elsewhere) -> this channel's own current-month discount (from whichever days that month already
+  have real gross) -> MRP x (1 - channel's discount over its last 28 days of actuals, per category)
+  -> MRP x (1 - 11%, or CHANNEL_DEFAULT_DISCOUNT) if the channel has no gross history at all.
+  **Zepto is temporarily overridden** ahead of all of this: `config.ZEPTO_DISCOUNT_ABS` holds the
+  owner's own monthly rupee discount for Apr-Sep 2026; discount% = that ÷ Zepto's own MRP that
+  month. Remove once Zepto's weekly/sales-master gross is trustworthy again.
 - **Net sales** = gross / 1.18.
 - **AOV:** orders where the sales master has them; elsewhere quantity counts as orders, so AOV = ASP.
   Orders data is unreliable; no orders column is shown. **Website and EBO(Stores) never use
@@ -73,6 +79,10 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
 - A source that ends early (ad spends currently stop in May) must not truncate anything; show a short
   note under the cards instead ("No ad spends after 31 May 2026").
 - Show a red "these numbers are not real" banner whenever running on demo data or when secrets fail to parse.
+- The channel and category tables (`components/tables.py`) are plain HTML, not `st.dataframe` --
+  its interactive column-header sort has no way to keep one row pinned, which is what a Total row
+  needs. Sorting is instead an explicit "Sort by" control that re-sorts server-side and always
+  re-appends the Total row last. Default sort is MRP sales, descending.
 
 ## Design preferences (owner is strict about these)
 

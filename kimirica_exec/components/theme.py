@@ -113,8 +113,19 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 .watch li.high::before {{ background: {NEG}; }}
 .empty {{ font-size: 13px; color: {MUTED}; padding: 8px 0; }}
 
-/* tables */
-[data-testid="stDataFrame"] {{ border: 1px solid {LINE}; border-radius: 10px; overflow: hidden; }}
+/* tables (channel / category performance): plain HTML so the Total row can be pinned last no
+   matter how the "Sort by" control re-orders the rows above it */
+.k-tbl-wrap {{ overflow-x: auto; border: 1px solid {LINE}; border-radius: 10px; margin-top: 2px; }}
+.k-tbl {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+.k-tbl th {{ text-align: right; font-weight: 500; color: {MUTED}; font-size: 12px; padding: 9px 12px;
+  border-bottom: 1px solid {LINE}; background: {PAGE}; white-space: nowrap; }}
+.k-tbl th:first-child, .k-tbl td:first-child {{ text-align: left; position: sticky; left: 0; }}
+.k-tbl th:first-child {{ background: {PAGE}; z-index: 2; }}
+.k-tbl td {{ text-align: right; padding: 7px 12px; border-bottom: 1px solid {GRID}; white-space: nowrap;
+  font-variant-numeric: tabular-nums; }}
+.k-tbl td:first-child {{ background: {SURFACE}; z-index: 1; }}
+.k-tbl tbody.k-tbl-total td {{ border-top: 2px solid {LINE}; border-bottom: none; background: {PAGE}; }}
+.k-tbl tbody.k-tbl-total td:first-child {{ background: {PAGE}; }}
 .stApp .note {{ font-size: 11.5px; color: {FAINT}; margin: 0; }}
 </style>
 """

@@ -183,6 +183,17 @@ DEFAULT_DISCOUNT = float(_get("DEFAULT_DISCOUNT", 0.11))
 # Per-channel override of DEFAULT_DISCOUNT, for channels whose no-history fallback shouldn't use
 # the general 11% (owner-specified).
 CHANNEL_DEFAULT_DISCOUNT: dict[str, float] = {"FK-Minutes": 0.15}
+
+# TEMPORARY (owner, Sep 2026): Zepto's own gross isn't trustworthy right now, so its gross is
+# instead derived from these owner-given monthly rupee discounts -- discount% = this ÷ Zepto's own
+# MRP that month, applied to every day's MRP that month. Overrides the weekly table and any
+# estimate for Zepto in these months. Remove this (and the ZEPTO_DISCOUNT_ABS branch in
+# estimates.fill_gross) once Zepto's weekly/sales-master gross is reliable again.
+ZEPTO_DISCOUNT_ABS: dict[str, float] = {
+    "2026-04": 245_451, "2026-05": 313_824, "2026-06": 374_412,
+    "2026-07": 426_727, "2026-08": 1_690_115, "2026-09": 986_025,
+}
+
 # Channels refreshed weekly; used only to flag an overdue weekly load.
 WEEKLY_GROSS_CHANNELS = ["Blinkit", "Zepto", "Swiggy", "FK-Minutes", "Myntra", "Nykaa", "Tira"]
 WEEKLY_OVERDUE_DAYS = 9

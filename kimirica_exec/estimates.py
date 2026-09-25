@@ -7,9 +7,13 @@ MRP sales are daily and authoritative for every channel. Gross sales are taken i
   2. Weekly gross table (day grain, refreshed weekly), for rows the sales master leaves empty.
      Matched by category where the weekly table has a real one; a channel-level (or "Unmapped")
      weekly figure is spread across that day's category rows by MRP share instead.
-  3. Estimated: daily MRP x (1 - discount), where the discount is gross / MRP over the
+  3. This channel's OWN current-month discount (from whichever days this month already have real
+     gross from #1/#2), applied to the rest of that same month -- a fresher number than reaching
+     back through #4's rolling window, and what a month with only a few days' lag should use.
+  4. Estimated: daily MRP x (1 - discount), where the discount is gross / MRP over the
      EST_LOOKBACK_DAYS of actuals before the channel's last actual day, per category when possible.
-  4. Estimated with DEFAULT_DISCOUNT (11%) when a channel has no actuals to learn from.
+  5. Estimated with DEFAULT_DISCOUNT (11%, or CHANNEL_DEFAULT_DISCOUNT) when a channel has no
+     actuals to learn from at all.
 
 Filled rows carry est = 1. Net sales are derived from gross afterwards.
 """
@@ -39,6 +43,32 @@ def _clamp_gross(filled: np.ndarray, mrp: np.ndarray) -> np.ndarray:
     estimate fallback fills it instead of showing an impossible number."""
     valid = np.isfinite(filled) & (filled >= 0) & (filled <= mrp + 1e-6)
     return np.where(valid, filled, np.nan)
+
+
+def _fill_zepto_override(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    TEMPORARY (see config.ZEPTO_DISCOUNT_ABS): Zepto's gross for these months comes from the
+    owner's own rupee discount figures, not the weekly table -- discount% = that month's rupee
+    discount ÷ Zepto's own MRP for the month, applied to every day's MRP that month. Runs before
+    _from_weekly so it wins for Zepto in these months regardless of what the weekly table says.
+    """
+    if not config.ZEPTO_DISCOUNT_ABS:
+        return df
+    rows = df["channel"] == "Zepto"
+    if not rows.any():
+        return df
+    df = df.copy()
+    month = df["date"].dt.strftime("%Y-%m")
+    mrp_by_month = df.loc[rows].groupby(month[rows])["mrp_sales"].sum(min_count=1)
+    for m, disc_abs in config.ZEPTO_DISCOUNT_ABS.items():
+        mrp_total = mrp_by_month.get(m)
+        if not mrp_total or pd.isna(mrp_total) or mrp_total <= 0:
+            continue
+        rate = disc_abs / mrp_total
+        target = rows & (month == m)
+        df.loc[target, "gross_sales"] = df.loc[target, "mrp_sales"] * (1 - rate)
+        df.loc[target, "est"] = 1.0
+    return df
 
 
 def _from_weekly(df: pd.DataFrame, weekly: pd.DataFrame) -> pd.DataFrame:
@@ -128,15 +158,43 @@ def _fill_prior_fy_gross(df: pd.DataFrame, max_date) -> pd.DataFrame:
     return df.drop(columns=["_month", "_ty_month"])
 
 
+def _fill_same_month_gross(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Within a channel's own calendar month, use whichever days already have real gross (sales
+    master or a weekly-table match) to compute that month's own discount, and fill the rest of the
+    month with it -- fresher than reaching back through the rolling-lookback estimate below, and
+    exactly what a channel that's a few days behind on gross (but not missing MRP) should use. A
+    channel-month with zero real gross anywhere falls through to that fallback untouched.
+    """
+    gap = df["gross_sales"].isna() & df["mrp_sales"].notna()
+    if not gap.any():
+        return df
+    df = df.copy()
+    df["_month"] = df["date"].dt.to_period("M")
+    actual = df["gross_sales"].notna() & df["mrp_sales"].notna()
+    monthly = df.loc[actual].groupby(["channel", "_month"]).agg(
+        g=("gross_sales", "sum"), m=("mrp_sales", "sum"))
+    monthly["discount"] = 1 - monthly["g"] / monthly["m"].where(monthly["m"] > 0)
+    disc = monthly["discount"].dropna()
+    for (ch, m), rate in disc.items():
+        rows = gap & (df["channel"] == ch) & (df["_month"] == m)
+        if rows.any():
+            df.loc[rows, "gross_sales"] = df.loc[rows, "mrp_sales"] * (1 - rate)
+            df.loc[rows, "est"] = 1.0
+    return df.drop(columns=["_month"])
+
+
 def fill_gross(sales: pd.DataFrame, weekly: pd.DataFrame | None,
                lookback_days: int | None = None, max_date=None) -> tuple[pd.DataFrame, EstimateMeta]:
     lookback = pd.Timedelta(days=lookback_days or config.EST_LOOKBACK_DAYS)
     df = sales.copy()
     df["est"] = 0.0
+    df = _fill_zepto_override(df)
     if weekly is not None and not weekly.empty:
         df = _from_weekly(df, weekly)
     if max_date is not None:
         df = _fill_prior_fy_gross(df, max_date)
+    df = _fill_same_month_gross(df)
 
     meta: EstimateMeta = {}
     gap = df["gross_sales"].isna() & df["mrp_sales"].notna()
