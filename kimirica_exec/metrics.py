@@ -659,6 +659,11 @@ def _common_columns(out: pd.DataFrame, mtd: pd.DataFrame, lmtd: pd.DataFrame) ->
     out["LMTD AOV"] = _ratio_col(lmtd["aov_num"], lmtd["aov_den"])
     out["aov_proxy"] = mtd["aov_proxy"].fillna(0) > 0
     out["est"] = mtd["est"].fillna(0) > 0
+    # Kept only so add_totals_row can compute a real blended ASP/AOV for the Total row (gross ÷
+    # total quantity, gross-with-orders ÷ total orders) instead of just re-averaging ratios.
+    out["_quantity"] = mtd["quantity"]
+    out["_aov_num"] = mtd["aov_num"]
+    out["_aov_den"] = mtd["aov_den"]
 
 
 TOTAL_LABEL = "Total"
@@ -670,8 +675,10 @@ def add_totals_row(out: pd.DataFrame, label_col: str) -> pd.DataFrame:
     from components/tables.py right before rendering, never on the value returned by channel_table /
     category_table, so charts, insights and the watchlist never see "Total" as if it were a channel.
     Built from the final table alone (additive columns re-summed, ratios re-derived from those sums)
-    so it needs nothing beyond what's already there. AOV/ASP are left blank -- a blended average
-    isn't reconstructable from the display table, and isn't summed to avoid a misleading number.
+    so it needs nothing beyond what's already there. Every ratio -- Discount, ASP, AOV, MoM -- is
+    the real blended figure from the summed numerator/denominator, not an average of the individual
+    rows' ratios; each sum independently ignores rows that don't have that particular figure
+    (min_count=1), so one channel missing e.g. orders doesn't blank out the whole row's total.
     """
     if out.empty:
         return out
@@ -681,6 +688,8 @@ def add_totals_row(out: pd.DataFrame, label_col: str) -> pd.DataFrame:
         label_col: TOTAL_LABEL,
         "MRP sales": mrp, "Gross sales": gross, "Net sales": s("Net sales"),
         "Discount": ratio(mrp - gross, mrp) if not (is_na(mrp) or is_na(gross)) else np.nan,
+        "AOV": ratio(s("_aov_num"), s("_aov_den")),
+        "ASP": ratio(gross, s("_quantity")),
         "MoM": pct(mrp, lmtd),
         "Share": 1.0 if not is_na(mrp) else np.nan,
         "LMTD": lmtd,
