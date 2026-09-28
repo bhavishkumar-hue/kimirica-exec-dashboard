@@ -114,15 +114,13 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 .empty {{ font-size: 13px; color: {MUTED}; padding: 8px 0; }}
 
 /* tables */
-[data-testid="stDataFrame"] {{ border: 1px solid {LINE}; border-radius: 10px; overflow: hidden; }}
+[data-testid="stDataFrame"] {{ border: 1px solid {LINE}; border-radius: 10px 10px 0 0; overflow: hidden; }}
 /* Total row for the channel/category tables: a summary strip directly under the sortable grid, not
-   a row inside it (st.dataframe's column-sort has no way to keep one row pinned). The wrapping
-   container's own gap is tightened so the strip sits right against the table, not a page-section's
-   worth of space below it. */
-div[class*="st-key-tbl_"][class*="_wrap"] [data-testid="stVerticalBlock"],
-div[class*="st-key-cat_"][class*="_wrap"] [data-testid="stVerticalBlock"] {{ gap: 0 !important; }}
+   a row inside it (st.dataframe's column-sort has no way to keep one row pinned). The gap between
+   the table and this strip is set to 0 on the st.container itself (Python's gap= param), not here --
+   flush against the table's bottom edge, no page-section-sized space below it. */
 .tbl-total-strip {{ display: flex; background: {SURFACE}; border: 1px solid {LINE}; border-top: 2px solid {INK};
-  border-radius: 0 0 10px 10px; margin-top: 6px; overflow: hidden; }}
+  border-radius: 0 0 10px 10px; overflow: hidden; }}
 .tbl-total-cell {{ flex: 1 1 0; padding: 8px 14px; text-align: right; font-size: 13.5px; font-weight: 600;
   color: {INK}; white-space: nowrap; }}
 .tbl-total-cell span {{ display: block; font-size: 11px; font-weight: 500; color: {MUTED}; margin-bottom: 2px; }}
