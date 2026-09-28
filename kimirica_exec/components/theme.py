@@ -116,9 +116,14 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 /* tables */
 [data-testid="stDataFrame"] {{ border: 1px solid {LINE}; border-radius: 10px 10px 0 0; overflow: hidden; }}
 /* Total row for the channel/category tables: a summary strip directly under the sortable grid, not
-   a row inside it (st.dataframe's column-sort has no way to keep one row pinned). The gap between
-   the table and this strip is set to 0 on the st.container itself (Python's gap= param), not here --
-   flush against the table's bottom edge, no page-section-sized space below it. */
+   a row inside it (st.dataframe's column-sort has no way to keep one row pinned). The table+strip
+   wrapper's own gap (Python gap= param) gets overridden by the broader
+   `[class*="st-key-panel"] [data-testid="stVerticalBlock"]` rule below, since that's a descendant
+   selector reaching into every nested container inside any panel_* section, including this one --
+   so it's pinned here too, as a single compound selector (class + data-testid on the SAME element,
+   no space) with !important so it wins regardless of which rule loaded last. */
+[data-testid="stVerticalBlock"][class*="st-key-tbl_"],
+[data-testid="stVerticalBlock"][class*="st-key-cat_"] {{ gap: 4px !important; }}
 .tbl-total-strip {{ display: flex; background: {SURFACE}; border: 1px solid {LINE}; border-top: 2px solid {INK};
   border-radius: 0 0 10px 10px; overflow: hidden; }}
 .tbl-total-cell {{ flex: 1 1 0; padding: 8px 14px; text-align: right; font-size: 13.5px; font-weight: 600;

@@ -116,9 +116,11 @@ def _total_strip(total_row, cols: list[str], raw: bool) -> None:
 
 def _table_with_total(df: pd.DataFrame, sty, cols: list[str], raw: bool, height: int,
                       col_config: dict, key: str, total_row) -> None:
-    # gap=0 (Streamlit's own container spacing control, not a CSS guess) so the strip sits flush
-    # against the table's bottom edge instead of a page-section's worth of space below it.
-    with st.container(key=f"{key}_wrap", gap=0):
+    # gap="xxsmall" (Streamlit's own container spacing control, not a CSS guess) so the strip sits
+    # right against the table's bottom edge. gap=0 looked identical to the default -- Streamlit
+    # appears to treat the int 0 as falsy and silently keeps its own default ("small", 12px)
+    # instead, confirmed by inspecting the live page's computed style.
+    with st.container(key=f"{key}_wrap", gap="xxsmall"):
         st.dataframe(sty, hide_index=True, width="stretch", placeholder="—",
                     height=height, column_config=col_config, key=key)
         _total_strip(total_row, cols, raw)
