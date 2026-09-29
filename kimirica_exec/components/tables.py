@@ -60,7 +60,7 @@ def _styler(df: pd.DataFrame, raw: bool, pct_cols: dict[str, bool], expected: fl
     return sty.set_properties(subset=[df.columns[0]], **{"font-weight": "600", "color": T.INK})
 
 
-def _help() -> dict:
+def _help(cmp_short: str) -> dict:
     basis = M.METRIC_LABELS[config.GROWTH_METRIC]
     return {
         "MRP sales": "MTD sales at MRP, including freebies",
@@ -69,19 +69,21 @@ def _help() -> dict:
         "Discount": "1 − gross sales ÷ MRP sales",
         "AOV": "Gross sales ÷ orders, or ASP where orders aren't tracked",
         "ASP": "Gross sales ÷ units",
-        "MoM": f"{basis} vs the comparison period",
+        "MoM": f"{basis} vs {cmp_short}",
         "Target": "AOP for the months in the selected period",
         "Ach.": "Achieved so far ÷ AOP. Green when on pace for the time elapsed",
         "Share": f"Share of MTD {M.metric_lc(config.GROWTH_METRIC)} in this view",
     }
 
 
-def _col_config(df: pd.DataFrame, first_label: str) -> dict:
-    helps = _help()
+def _col_config(df: pd.DataFrame, first_label: str, cmp_short: str) -> dict:
+    helps = _help(cmp_short)
     basis = M.METRIC_LABELS[config.GROWTH_METRIC].split()[0]
     cfg = {df.columns[0]: st.column_config.Column(first_label, width="medium", pinned=True)}
     for c in df.columns[1:]:
-        label = {"MoM": f"Growth ({basis})", "Target": "AOP", "Ach.": "AOP ach."}.get(c, c)
+        # cmp_short names the actual comparison ("LMTD", "LY", "Comparison period", ...) so the
+        # header itself says what growth is measured against, not just "Growth (MRP)".
+        label = {"MoM": f"Growth ({basis}) vs {cmp_short}", "Target": "AOP", "Ach.": "AOP ach."}.get(c, c)
         cfg[c] = st.column_config.Column(label, help=helps.get(c))
     return cfg
 
@@ -116,17 +118,16 @@ def _total_strip(total_row, cols: list[str], raw: bool) -> None:
 
 def _table_with_total(df: pd.DataFrame, sty, cols: list[str], raw: bool, height: int,
                       col_config: dict, key: str, total_row) -> None:
-    # gap="xxsmall" (Streamlit's own container spacing control, not a CSS guess) so the strip sits
-    # right against the table's bottom edge. gap=0 looked identical to the default -- Streamlit
-    # appears to treat the int 0 as falsy and silently keeps its own default ("small", 12px)
-    # instead, confirmed by inspecting the live page's computed style.
+    # gap="xxsmall" is largely academic now -- theme.py forces gap:4px !important on these specific
+    # wrapper containers, because a broader panel_* rule was overriding whatever gap= said here (see
+    # the comment there). Kept as a sane native fallback if that CSS ever fails to load.
     with st.container(key=f"{key}_wrap", gap="xxsmall"):
         st.dataframe(sty, hide_index=True, width="stretch", placeholder="—",
                     height=height, column_config=col_config, key=key)
         _total_strip(total_row, cols, raw)
 
 
-def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, expected: float = 1.0) -> None:
+def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, cmp_short: str, expected: float = 1.0) -> None:
     label = "Channel" if key_col == "channel" else "Channel group"
     cols = [key_col, "MRP sales", "Gross sales", "Net sales", "Discount", "AOV", "ASP", "MoM", "Target", "Ach."]
     if tbl["Target"].isna().all():
@@ -134,16 +135,16 @@ def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, expected: float = 
     df = tbl[cols].reset_index(drop=True)
     sty = _styler(df, raw, {"Discount": False, "MoM": True, "Ach.": False}, expected)
     total_row = M.add_totals_row(tbl, key_col).iloc[-1]
-    _table_with_total(df, sty, cols, raw, min(38 + 35 * len(df), 560), _col_config(df, label),
+    _table_with_total(df, sty, cols, raw, min(38 + 35 * len(df), 560), _col_config(df, label, cmp_short),
                       f"tbl_{key_col}_{raw}", total_row)
 
 
-def category_table(ct: pd.DataFrame, raw: bool) -> None:
+def category_table(ct: pd.DataFrame, raw: bool, cmp_short: str) -> None:
     # No AOV here: an order spans categories, so a per-category order count (and the AOV built on
     # it) is not a real number. ASP (gross / units) is fine at category grain and stays.
     cols = ["Category", "MRP sales", "Gross sales", "Net sales", "Discount", "ASP", "MoM", "Share"]
     df = ct[cols].reset_index(drop=True)
     sty = _styler(df, raw, {"Discount": False, "MoM": True, "Share": False})
     total_row = M.add_totals_row(ct, "Category").iloc[-1]
-    _table_with_total(df, sty, cols, raw, min(38 + 35 * len(df), 460), _col_config(df, "Category"),
+    _table_with_total(df, sty, cols, raw, min(38 + 35 * len(df), 460), _col_config(df, "Category", cmp_short),
                       f"cat_{raw}", total_row)

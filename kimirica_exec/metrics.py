@@ -716,6 +716,10 @@ def channel_table(cd: pd.DataFrame, P: Periods, key: str = "channel",
 
     out = pd.DataFrame(index=pd.Index(idx, name=key))
     _common_columns(out, mtd, lmtd)
+    if key == "channel":
+        # Amazon-UAE's MRP feed is still in testing and isn't trustworthy -- see
+        # config.NO_DISCOUNT_CHANNELS. Discount is meaningless for it until that's fixed.
+        out.loc[out.index.isin(config.NO_DISCOUNT_CHANNELS), "Discount"] = np.nan
     if plan is not None:
         # AOP for the whole months in the period; achieved to date against it (read with time elapsed)
         achieved = window(cd, P.aop_start, P.as_of).groupby(key)["ach_metric"].sum(min_count=1).reindex(idx)

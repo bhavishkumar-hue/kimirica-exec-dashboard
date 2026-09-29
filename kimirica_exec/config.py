@@ -184,6 +184,11 @@ DEFAULT_DISCOUNT = float(_get("DEFAULT_DISCOUNT", 0.11))
 # the general 11% (owner-specified).
 CHANNEL_DEFAULT_DISCOUNT: dict[str, float] = {"FK-Minutes": 0.15}
 
+# TEMPORARY (owner, Sep 2026): Amazon-UAE's own MRP feed is still in testing and isn't trustworthy,
+# so its "MRP" is effectively the same as its gross right now -- Discount (1 - gross/MRP) is
+# meaningless for it and is shown as "--" instead. Remove once Amazon-UAE's real MRP is live.
+NO_DISCOUNT_CHANNELS = ["Amazon-UAE"]
+
 # TEMPORARY (owner, Sep 2026): Zepto's own gross isn't trustworthy right now, so its gross is
 # instead derived from these owner-given monthly rupee discounts -- discount% = this ÷ Zepto's own
 # MRP that month, applied to every day's MRP that month. Overrides the weekly table and any

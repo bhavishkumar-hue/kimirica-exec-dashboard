@@ -1,4 +1,14 @@
-"""Visual system: tokens, global CSS, header and section headings."""
+"""
+Visual system: tokens, global CSS, header and section headings.
+
+Dark mode: Streamlit detects the viewer's OS/browser colour-scheme preference itself (confirmed via
+st.context.theme -- no .streamlit/config.toml entry needed, and no in-app toggle since our own CSS
+hides Streamlit's menu). _apply_theme() reads that once per rerun and reassigns the module-level
+colour names (INK, MUTED, ACCENT, ...) to the light or dark palette. Every other module reads these
+as plain attribute lookups (T.INK, T.POS, ...) at the point it builds CSS or a Plotly figure -- never
+cached at import time -- so they automatically pick up whichever palette this rerun resolved to,
+including the charts, which bake in real hex colours and can't be themed via CSS alone.
+"""
 from __future__ import annotations
 
 import html
@@ -6,21 +16,38 @@ from pathlib import Path
 
 import streamlit as st
 
-INK = "#17231F"
-MUTED = "#5E6B67"
-FAINT = "#8A9591"
-LINE = "#E2E7E5"
-GRID = "#EEF1F0"
-PAGE = "#F4F6F5"
-SURFACE = "#FFFFFF"
-ACCENT = "#1F4D46"
-ACCENT_SOFT = "#DCE8E5"
-POS = "#1D7A4C"
-NEG = "#B3402E"
-WARN = "#A76A0E"
 FONT = "'IBM Plex Sans', -apple-system, 'Segoe UI', Roboto, sans-serif"
 
-_CSS = f"""
+_LIGHT = dict(
+    INK="#17231F", MUTED="#5E6B67", FAINT="#8A9591", LINE="#E2E7E5", GRID="#EEF1F0",
+    PAGE="#F4F6F5", SURFACE="#FFFFFF", ACCENT="#1F4D46", ACCENT_SOFT="#DCE8E5", STRIPE="#C7DAD5",
+    POS="#1D7A4C", NEG="#B3402E", WARN="#A76A0E", INPUT_BG="#FAFBFB", INPUT_BG_FILTERS="#F4F7F6",
+    SHADOW="rgba(23,35,31,.05)", GHOST_STRONG="#D5DDDA", GHOST_FAINT="#E6EBE9",
+)
+_DARK = dict(
+    INK="#EDF1EF", MUTED="#9BA8A3", FAINT="#6E7A75", LINE="#2B322D", GRID="#1F2521",
+    PAGE="#0E1117", SURFACE="#171B21", ACCENT="#4FB89C", ACCENT_SOFT="#1D3733", STRIPE="#284A44",
+    POS="#3FCB86", NEG="#F0796A", WARN="#E3AE55", INPUT_BG="#1B2126", INPUT_BG_FILTERS="#1B2126",
+    SHADOW="rgba(0,0,0,.25)", GHOST_STRONG="#3A453E", GHOST_FAINT="#20262C",
+)
+
+# Populated by _apply_theme() before anything else reads them; light values are the fallback if
+# that hasn't run yet for some reason (e.g. a module imported outside a page run).
+IS_DARK = False
+globals().update(_LIGHT)
+
+
+def _apply_theme() -> None:
+    global IS_DARK
+    try:
+        IS_DARK = st.context.theme.get("type") == "dark"
+    except Exception:
+        IS_DARK = False
+    globals().update(_DARK if IS_DARK else _LIGHT)
+
+
+def _build_css() -> str:
+    return f"""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap');
 
@@ -34,9 +61,9 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 
 /* widgets */
 .stApp label p {{ font-size: 12px; color: {MUTED}; font-weight: 500; }}
-[data-baseweb="select"] > div, [data-baseweb="input"] {{ border-radius: 8px; border: 1px solid {LINE} !important; background: #FAFBFB; }}
+[data-baseweb="select"] > div, [data-baseweb="input"] {{ border-radius: 8px; border: 1px solid {LINE} !important; background: {INPUT_BG}; color: {INK}; }}
 [data-baseweb="input"] > div {{ background: transparent; }}
-.st-key-filters div[data-baseweb="select"] > div, .st-key-filters div[data-baseweb="input"] {{ background-color: #F4F7F6 !important; }}
+.st-key-filters div[data-baseweb="select"] > div, .st-key-filters div[data-baseweb="input"] {{ background-color: {INPUT_BG_FILTERS} !important; }}
 .stButton button {{ border-radius: 8px; border: 1px solid {LINE}; background: {SURFACE}; color: {INK}; font-weight: 500; }}
 .stButton button:hover {{ border-color: {ACCENT}; color: {ACCENT}; }}
 .stButton button:focus-visible {{ outline: 2px solid {ACCENT}; outline-offset: 2px; }}
@@ -44,7 +71,7 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 /* panels: containers keyed "panel_*" */
 [class*="st-key-panel"] {{
   background: {SURFACE}; border: 1px solid {LINE}; border-radius: 14px; padding: 22px 24px 18px;
-  box-shadow: 0 1px 2px rgba(23,35,31,.03);
+  box-shadow: 0 1px 2px {SHADOW};
 }}
 [class*="st-key-panel"] [data-testid="stVerticalBlock"] {{ gap: 0.75rem; }}
 .st-key-filters {{ background: {SURFACE}; border: 1px solid {LINE}; border-radius: 14px; padding: 12px 18px 14px; margin-bottom: 8px; }}
@@ -94,10 +121,12 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 .pace-fill span {{ font-size: 11.5px; font-weight: 600; color: #FFFFFF; padding-right: 8px; white-space: nowrap;
   font-variant-numeric: tabular-nums; }}
 .pace-proj {{ position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: repeating-linear-gradient(
-  -45deg, {ACCENT_SOFT}, {ACCENT_SOFT} 4px, #C7DAD5 4px, #C7DAD5 8px); }}
+  -45deg, {ACCENT_SOFT}, {ACCENT_SOFT} 4px, {STRIPE} 4px, {STRIPE} 8px); }}
 .pace-proj-label {{ position: absolute; top: 28px; transform: translateX(-100%); font-size: 11.5px;
   color: {MUTED}; white-space: nowrap; font-variant-numeric: tabular-nums; }}
 .pace-mark {{ position: absolute; top: -4px; width: 2px; height: 32px; background: {INK}; opacity: .55; }}
+.pace-mark-label {{ position: absolute; top: -18px; transform: translateX(-50%); font-size: 10.5px;
+  color: {MUTED}; white-space: nowrap; }}
 .pace-stats {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 26px; }}
 .pace-stat .l {{ font-size: 11.5px; color: {MUTED}; }}
 .pace-stat .v {{ font-size: 17px; font-weight: 600; color: {INK}; font-variant-numeric: tabular-nums;
@@ -118,7 +147,7 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 /* Total row for the channel/category tables: a summary strip directly under the sortable grid, not
    a row inside it (st.dataframe's column-sort has no way to keep one row pinned). The table+strip
    wrapper's own gap (Python gap= param) gets overridden by the broader
-   `[class*="st-key-panel"] [data-testid="stVerticalBlock"]` rule below, since that's a descendant
+   `[class*="st-key-panel"] [data-testid="stVerticalBlock"]` rule above, since that's a descendant
    selector reaching into every nested container inside any panel_* section, including this one --
    so it's pinned here too, as a single compound selector (class + data-testid on the SAME element,
    no space) with !important so it wins regardless of which rule loaded last. */
@@ -136,7 +165,8 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 
 
 def inject_css() -> None:
-    st.markdown(_CSS, unsafe_allow_html=True)
+    _apply_theme()
+    st.markdown(_build_css(), unsafe_allow_html=True)
 
 
 def esc(text) -> str:

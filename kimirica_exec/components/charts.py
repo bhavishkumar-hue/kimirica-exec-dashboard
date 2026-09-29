@@ -21,7 +21,7 @@ def _base(fig: go.Figure, height: int, hovermode: str = "x unified", legend: boo
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family=T.FONT, size=12, color=T.MUTED),
         hovermode=hovermode,
-        hoverlabel=dict(bgcolor="white", bordercolor=T.LINE, font=dict(family=T.FONT, size=12, color=T.INK)),
+        hoverlabel=dict(bgcolor=T.SURFACE, bordercolor=T.LINE, font=dict(family=T.FONT, size=12, color=T.INK)),
         showlegend=legend,
         legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="left", x=0,
                     font=dict(size=11.5, color=T.MUTED), itemclick="toggle", itemdoubleclick="toggleothers",
@@ -85,7 +85,7 @@ def target_chart(tf: pd.DataFrame, height: int | None = None, expected: float = 
     fig = go.Figure()
     fig.add_trace(go.Bar(
         y=tf["channel"], x=tf["target"], name="AOP target", orientation="h",
-        marker=dict(color="#D5DDDA", line=dict(width=0)),
+        marker=dict(color=T.GHOST_STRONG, line=dict(width=0)),
         customdata=[M.fmt_inr_full(v) for v in tf["target"]], hovertemplate="%{customdata}",
     ))
     fig.add_trace(go.Bar(
@@ -152,7 +152,7 @@ def monthly_trend_chart(mt: pd.DataFrame, metric: str) -> None:
     fig = go.Figure()
     fig.add_trace(go.Bar(
         x=x, y=mt["ly_" + k], name="Last year", width=0.72,
-        marker=dict(color="#E6EBE9", line=dict(width=0)), hoverinfo="skip",
+        marker=dict(color=T.GHOST_FAINT, line=dict(width=0)), hoverinfo="skip",
     ))
     fig.add_trace(go.Bar(
         x=x, y=mt[k], name="This year", width=0.42,

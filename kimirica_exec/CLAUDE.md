@@ -49,6 +49,9 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   **Zepto is temporarily overridden** ahead of all of this: `config.ZEPTO_DISCOUNT_ABS` holds the
   owner's own monthly rupee discount for Apr-Sep 2026; discount% = that ÷ Zepto's own MRP that
   month. Remove once Zepto's weekly/sales-master gross is trustworthy again.
+- **Amazon-UAE has no Discount** (`config.NO_DISCOUNT_CHANNELS`, channel table only): its MRP feed
+  is still in testing, so MRP isn't trustworthy and its figures are effectively gross only. Shows
+  "--"; a note explains why whenever Amazon-UAE is in scope. Remove once its real MRP is live.
 - **Net sales** = gross / 1.18.
 - **AOV:** orders where the sales master has them; elsewhere quantity counts as orders, so AOV = ASP.
   Orders data is unreliable; no orders column is shown. **Website and EBO(Stores) never use
@@ -90,15 +93,28 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   markers, no "pp" (use plain % change). The only note allowed under the cards is
   "AOV is ASP for channels where order data isn't available." plus short data-coverage notes.
 - Header is just the Kimirica logo, centred. No status line.
-- A "Refresh data" button sits at the very bottom of the page (after Highlights/Needs attention),
-  clears all caches and reruns. Owner reversed the earlier "no refresh button" rule -- keep it there.
+- A "Refresh data" button sits at the very bottom of the page (after Highlights), clears all caches
+  and reruns. Owner reversed the earlier "no refresh button" rule -- keep it there.
 - All KPI cards the same size: 4 x 2 grid (MRP, gross, net, discount / quantity, AOV, ASP, ad spends).
 - Pacing ("Current month trend" / "Current FY trend"): month and year panels side by side; AOP, achieved,
   projected, pace; figures on the bar. Always describes the latest loaded month/FY to date, regardless of
-  the View/date filters (same for Highlights and Needs attention).
+  the View/date filters (same for Highlights). **No "Needs attention" section** -- owner had it removed
+  (Sep 2026); `metrics.watchlist()` / `insights.watchlist()` still exist but nothing calls them.
 - Monthly trend: bars, last year as faint ghost bars; tooltip shows only value, last year, YoY, MoM.
 - Section order: cards, pacing, channel table, category table, what-moved + AOP vs actual,
-  monthly trend, highlights + needs attention.
+  monthly trend, highlights.
+- Pacing bar's vertical tick is "today" (share of the month/year elapsed -- what achievement is
+  colour-graded against); it's labelled "Today (X% elapsed)" directly on the bar, not left unexplained.
+- Table growth column header states the actual comparison ("Growth (MRP) vs LMTD" / "... vs LY" /
+  "... vs Comparison period", from `P.cmp_short`), not just "Growth (MRP)".
+- **Dark mode**: Streamlit detects the viewer's OS/browser preference itself (`st.context.theme`,
+  confirmed via testing -- no config.toml entry, no in-app toggle since the menu is hidden).
+  `components/theme.py` holds a light and a dark palette; `_apply_theme()` (called first thing in
+  `inject_css()`) reassigns the module's colour names (`T.INK`, `T.POS`, ...) each rerun. Every
+  other module reads them as plain attribute lookups at the point it builds CSS or a Plotly figure
+  (never cached at import), so both the CSS and the charts -- which bake in real hex colours and
+  can't be themed via CSS alone -- pick up the right palette automatically. Adding a new hardcoded
+  hex colour anywhere instead of a `T.` token will not adapt to dark mode; don't do that.
 
 ## Status and open items
 

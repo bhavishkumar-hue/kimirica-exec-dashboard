@@ -8,6 +8,8 @@ import metrics as M
 from components.theme import esc
 
 AOV_NOTE = "AOV is ASP for channels where order data isn't available."
+UAE_DISCOUNT_NOTE = ("Amazon-UAE discount isn't shown: its MRP feed is still in testing, "
+                     "so its figures are effectively gross only.")
 
 
 def _delta(value, label: str, neutral: bool = False, invert: bool = False) -> str:
@@ -64,11 +66,16 @@ def render_kpis(s: dict, P: M.Periods, ads_available: bool) -> None:
 def _bar(achieved_pct: float, projected_pct: float, elapsed_pct: float,
          achieved_text: str, projected_text: str) -> str:
     a, pr = min(achieved_pct, 1.0) * 100, min(projected_pct, 1.0) * 100
+    mark = max(0.0, min(elapsed_pct, 1.0)) * 100
     return (f'<div class="pace-bar">'
             f'<div class="pace-proj" style="width:{pr:.1f}%"></div>'
             f'<div class="pace-fill" style="width:{a:.1f}%"><span>{esc(achieved_text)}</span></div>'
             f'<div class="pace-proj-label" style="left:{pr:.1f}%">{esc(projected_text)}</div>'
-            f'<div class="pace-mark" style="left:calc({elapsed_pct * 100:.1f}% - 1px)"></div>'
+            # The vertical line marks today, i.e. how much of the month/year has elapsed --
+            # what achievement is being colour-graded against (on pace if achieved has caught up
+            # to this line; behind if it hasn't). Labelled directly since it isn't self-explanatory.
+            f'<div class="pace-mark" style="left:calc({mark:.1f}% - 1px)"></div>'
+            f'<div class="pace-mark-label" style="left:{mark:.1f}%">Today ({mark:.0f}% elapsed)</div>'
             f'</div>')
 
 

@@ -198,7 +198,10 @@ for n in data.notes:
 # --------------------------------------------------------------------------- #
 kpi_cards.render_kpis(snap, P, ads_available=ads is not None)
 gaps = M.coverage_notes(data.spans, P.cur_start, P.as_of)
-T.note(" ".join([kpi_cards.AOV_NOTE] + gaps))
+notes_line = [kpi_cards.AOV_NOTE]
+if "Amazon-UAE" in in_scope:
+    notes_line.append(kpi_cards.UAE_DISCOUNT_NOTE)
+T.note(" ".join(notes_line + gaps))
 kpi_cards.render_pacing(snap_today, PT)
 
 # --------------------------------------------------------------------------- #
@@ -217,7 +220,7 @@ with st.container(key="panel_channels"):
     if view_tbl.empty:
         empty("No sales for this selection.")
     else:
-        tables.channel_table(view_tbl, key_col, raw, expected=P.aop_progress)
+        tables.channel_table(view_tbl, key_col, raw, P.cmp_short, expected=P.aop_progress)
 
 # --------------------------------------------------------------------------- #
 # 3. Category performance
@@ -232,7 +235,7 @@ if data.has_category:
         if ct.empty:
             empty("No category sales for this selection.")
         else:
-            tables.category_table(ct, raw_cat)
+            tables.category_table(ct, raw_cat, P.cmp_short)
             charts.category_chart(ct, P)
 
 # --------------------------------------------------------------------------- #
@@ -275,15 +278,11 @@ with st.container(key="panel_monthly"):
         empty("No monthly sales for this selection.")
 
 # --------------------------------------------------------------------------- #
-# 6. Highlights and watchlist
+# 6. Highlights
 # --------------------------------------------------------------------------- #
-h_col, w_col = st.columns([1.4, 1], gap="medium")
-with h_col, st.container(key="panel_highlights"):
+with st.container(key="panel_highlights"):
     T.section("Highlights")
     insights.highlights(M.insights(cd_today, PT, snap_today, tbl_today))
-with w_col, st.container(key="panel_watch"):
-    T.section("Needs attention")
-    insights.watchlist(M.watchlist(cd_today, PT, tbl_today, data.channel_last_date, scope, data.est_meta))
 
 # --------------------------------------------------------------------------- #
 # Refresh
