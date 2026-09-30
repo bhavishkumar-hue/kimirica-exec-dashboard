@@ -34,19 +34,29 @@ def require_access() -> None:
     (local dev, or before it's set in Streamlit Cloud secrets)."""
     if not config.APP_PASSWORD or st.session_state.get("authed"):
         return
-    T.header()
-    _, mid, _ = st.columns([1, 1.1, 1])
-    with mid:
-        with st.form("login"):
-            pw = st.text_input("Password", type="password", label_visibility="collapsed",
-                               placeholder="Password")
-            submitted = st.form_submit_button("Enter", use_container_width=True)
-        if submitted and hmac.compare_digest(pw.encode(), config.APP_PASSWORD.encode()):
-            st.session_state["authed"] = True
-            st.rerun()
-        elif submitted:
-            st.error("Wrong password.")
-    st.stop()
+    # st.rerun() looked like the obvious way to move on after a correct password, but it aborts
+    # the CURRENT run before its updates take effect -- Streamlit then shows this whole screen,
+    # dimmed, as the "last complete run" until the NEXT run finishes end to end, which for this
+    # app means the entire BigQuery load (confirmed live: the form stayed on screen the whole time,
+    # under the "Loading sales data" spinner). Clearing the gate and falling through to `return`
+    # instead lets the SAME run continue straight into the rest of app.py -- no second run, no
+    # stale screen to show while one loads.
+    gate = st.empty()
+    with gate.container():
+        T.header()
+        _, mid, _ = st.columns([1, 1.1, 1])
+        with mid:
+            with st.form("login"):
+                pw = st.text_input("Password", type="password", label_visibility="collapsed",
+                                   placeholder="Password")
+                submitted = st.form_submit_button("Enter", use_container_width=True)
+            if submitted and hmac.compare_digest(pw.encode(), config.APP_PASSWORD.encode()):
+                st.session_state["authed"] = True
+            elif submitted:
+                st.error("Wrong password.")
+    if not st.session_state.get("authed"):
+        st.stop()
+    gate.empty()
 
 
 require_access()
