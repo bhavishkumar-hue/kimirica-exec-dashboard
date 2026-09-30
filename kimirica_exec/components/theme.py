@@ -143,22 +143,19 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 .empty {{ font-size: 13px; color: {MUTED}; padding: 8px 0; }}
 
 /* tables */
-[data-testid="stDataFrame"] {{ border: 1px solid {LINE}; border-radius: 10px 10px 0 0; overflow: hidden; }}
-/* Total row for the channel/category tables: a summary strip directly under the sortable grid, not
-   a row inside it (st.dataframe's column-sort has no way to keep one row pinned). The table+strip
-   wrapper's own gap (Python gap= param) gets overridden by the broader
+[data-testid="stDataFrame"] {{ border: 1px solid {LINE}; border-radius: 10px; overflow: hidden; }}
+/* The Total row is a second st.dataframe stacked right under the sortable one, using the exact
+   same column_config -- see the long comment in components/tables.py for why (short version:
+   st.dataframe's column-sort can't exclude a single row, and its canvas-rendered grid has no
+   externally-readable column widths to match with anything else, so identical rendering is the
+   only way to guarantee the two line up). Both keep their own full corner rounding; the wrapper's
+   own gap (Python gap= param) gets overridden by the broader
    `[class*="st-key-panel"] [data-testid="stVerticalBlock"]` rule above, since that's a descendant
    selector reaching into every nested container inside any panel_* section, including this one --
    so it's pinned here too, as a single compound selector (class + data-testid on the SAME element,
    no space) with !important so it wins regardless of which rule loaded last. */
 [data-testid="stVerticalBlock"][class*="st-key-tbl_"],
 [data-testid="stVerticalBlock"][class*="st-key-cat_"] {{ gap: 4px !important; }}
-.tbl-total-strip {{ display: flex; background: {SURFACE}; border: 1px solid {LINE}; border-top: 2px solid {INK};
-  border-radius: 0 0 10px 10px; overflow: hidden; }}
-.tbl-total-cell {{ flex: 1 1 0; padding: 8px 14px; text-align: right; font-size: 13.5px; font-weight: 600;
-  color: {INK}; white-space: nowrap; }}
-.tbl-total-cell span {{ display: block; font-size: 11px; font-weight: 500; color: {MUTED}; margin-bottom: 2px; }}
-.tbl-total-label-cell {{ flex: 0 0 auto; min-width: 120px; text-align: left; }}
 .stApp .note {{ font-size: 11.5px; color: {FAINT}; margin: 0; }}
 </style>
 """

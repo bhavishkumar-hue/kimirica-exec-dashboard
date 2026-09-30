@@ -1,9 +1,19 @@
 """
 Tables. A pandas Styler controls display (₹ L/Cr, %, markers, subtle colour) while the underlying
-numbers stay numeric, so st.dataframe's native column-header sort stays correct. The Total row is
-NOT a row inside that sortable grid -- st.dataframe's interactive sort is a client-side grid feature
-with no way to exclude one row from it, so a Total row living inside the grid would itself get
-sorted into the middle of the table. Instead it's a compact summary strip rendered right below.
+numbers stay numeric, so st.dataframe's native column-header sort stays correct.
+
+The Total row is a SECOND st.dataframe, not a row inside the sortable one above it. Two reasons:
+  1. st.dataframe's interactive column-header sort is a client-side grid feature with no way to
+     exclude one row from it -- a Total row living inside the grid would itself get sorted into
+     the middle of the table.
+  2. st.dataframe renders its grid onto an HTML canvas, not real per-column DOM cells, and its
+     column widths come from an internal, unexposed auto-sizing algorithm. That was confirmed by
+     measuring the live page: the grid's own header elements report a zero-size bounding box, so
+     there's no width to read and match. An external HTML row (a flexbox strip, tried first) can
+     only ever guess those widths and will drift out of alignment at other screen widths -- the
+     only way to *guarantee* identical column widths is to render the total with the exact same
+     component and the exact same column_config, since that's what makes the layout deterministic.
+   The unavoidable cost is a second, repeated header row.
 
 Markers: * = AOV uses ASP (channel has no orders), † = includes estimated gross.
 """
@@ -76,55 +86,46 @@ def _help(cmp_short: str) -> dict:
     }
 
 
-def _col_config(df: pd.DataFrame, first_label: str, cmp_short: str) -> dict:
+def _col_width(col: str, raw: bool) -> int:
+    """
+    An EXPLICIT pixel width for every column -- width=None (the default) sizes a column to fit
+    that dataframe's own cell contents, which is exactly why the Total row (a second, separate
+    st.dataframe -- see the module docstring) could still drift out of alignment with the main
+    table even with an identical column_config: different data, different auto-sized width. An
+    explicit width is content-independent by definition, so the same number here always renders
+    the same regardless of which rows are in that particular dataframe.
+    """
+    if col in MONEY:
+        return 150 if raw else 105
+    if col in PRICES:
+        return 90
+    return 110  # Discount, MoM/Growth, Target-Ach./Share -- percent-ish or short figures
+
+
+def _col_config(df: pd.DataFrame, first_label: str, cmp_short: str, raw: bool) -> dict:
     helps = _help(cmp_short)
     basis = M.METRIC_LABELS[config.GROWTH_METRIC].split()[0]
-    cfg = {df.columns[0]: st.column_config.Column(first_label, width="medium", pinned=True)}
+    cfg = {df.columns[0]: st.column_config.Column(first_label, width=200, pinned=True)}
     for c in df.columns[1:]:
         # cmp_short names the actual comparison ("LMTD", "LY", "Comparison period", ...) so the
         # header itself says what growth is measured against, not just "Growth (MRP)".
         label = {"MoM": f"Growth ({basis}) vs {cmp_short}", "Target": "AOP", "Ach.": "AOP ach."}.get(c, c)
-        cfg[c] = st.column_config.Column(label, help=helps.get(c))
+        cfg[c] = st.column_config.Column(label, help=helps.get(c), width=_col_width(c, raw))
     return cfg
 
 
-def _fmt_total_value(col: str, v, raw: bool) -> str:
-    if M.is_na(v):
-        return "—"
-    if col in MONEY:
-        return M.fmt_inr_full(v) if raw else M.fmt_inr(v)
-    if col in PRICES:
-        return M.fmt_price(v)
-    if col in ("Discount", "Ach.", "Share"):
-        return M.fmt_pct(v, signed=False)
-    if col == "MoM":
-        return M.fmt_pct(v)
-    return str(v)
-
-
-def _total_strip(total_row, cols: list[str], raw: bool) -> None:
-    """A slim summary bar directly under the table -- deliberately not another table, so it can
-    never be reordered by the sortable grid above, and can't be mistaken for a repeated header."""
-    cells = "".join(
-        f'<div class="tbl-total-cell"><span>{T.esc(c)}</span>{T.esc(_fmt_total_value(c, total_row[c], raw))}</div>'
-        for c in cols[1:]
-    )
-    st.markdown(
-        f'<div class="tbl-total-strip"><div class="tbl-total-cell tbl-total-label-cell">'
-        f'<span>&nbsp;</span>Total</div>{cells}</div>',
-        unsafe_allow_html=True,
-    )
-
-
-def _table_with_total(df: pd.DataFrame, sty, cols: list[str], raw: bool, height: int,
-                      col_config: dict, key: str, total_row) -> None:
-    # gap="xxsmall" is largely academic now -- theme.py forces gap:4px !important on these specific
-    # wrapper containers, because a broader panel_* rule was overriding whatever gap= said here (see
-    # the comment there). Kept as a sane native fallback if that CSS ever fails to load.
+def _table_with_total(df: pd.DataFrame, sty, total_df: pd.DataFrame, raw: bool,
+                      pct_cols: dict[str, bool], expected: float, height: int,
+                      col_config: dict, key: str) -> None:
+    # gap="xxsmall": theme.py forces gap:4px !important on these specific wrapper containers (a
+    # broader panel_* rule was overriding whatever gap= said here -- see the comment there), so the
+    # second dataframe sits right against the first with no visible page-section-sized gap.
+    total_sty = _styler(total_df, raw, pct_cols, expected).set_properties(**{"font-weight": "700"})
     with st.container(key=f"{key}_wrap", gap="xxsmall"):
         st.dataframe(sty, hide_index=True, width="stretch", placeholder="—",
                     height=height, column_config=col_config, key=key)
-        _total_strip(total_row, cols, raw)
+        st.dataframe(total_sty, hide_index=True, width="stretch", placeholder="—",
+                    height=38 + 35, column_config=col_config, key=f"{key}_total")
 
 
 def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, cmp_short: str, expected: float = 1.0) -> None:
@@ -133,10 +134,11 @@ def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, cmp_short: str, ex
     if tbl["Target"].isna().all():
         cols = [c for c in cols if c not in ("Target", "Ach.")]
     df = tbl[cols].reset_index(drop=True)
-    sty = _styler(df, raw, {"Discount": False, "MoM": True, "Ach.": False}, expected)
-    total_row = M.add_totals_row(tbl, key_col).iloc[-1]
-    _table_with_total(df, sty, cols, raw, min(38 + 35 * len(df), 560), _col_config(df, label, cmp_short),
-                      f"tbl_{key_col}_{raw}", total_row)
+    pct_cols = {"Discount": False, "MoM": True, "Ach.": False}
+    sty = _styler(df, raw, pct_cols, expected)
+    total_df = M.add_totals_row(tbl, key_col)[cols].iloc[[-1]].reset_index(drop=True)
+    _table_with_total(df, sty, total_df, raw, pct_cols, expected, min(38 + 35 * len(df), 560),
+                      _col_config(df, label, cmp_short, raw), f"tbl_{key_col}_{raw}")
 
 
 def category_table(ct: pd.DataFrame, raw: bool, cmp_short: str) -> None:
@@ -144,7 +146,8 @@ def category_table(ct: pd.DataFrame, raw: bool, cmp_short: str) -> None:
     # it) is not a real number. ASP (gross / units) is fine at category grain and stays.
     cols = ["Category", "MRP sales", "Gross sales", "Net sales", "Discount", "ASP", "MoM", "Share"]
     df = ct[cols].reset_index(drop=True)
-    sty = _styler(df, raw, {"Discount": False, "MoM": True, "Share": False})
-    total_row = M.add_totals_row(ct, "Category").iloc[-1]
-    _table_with_total(df, sty, cols, raw, min(38 + 35 * len(df), 460), _col_config(df, "Category", cmp_short),
-                      f"cat_{raw}", total_row)
+    pct_cols = {"Discount": False, "MoM": True, "Share": False}
+    sty = _styler(df, raw, pct_cols)
+    total_df = M.add_totals_row(ct, "Category")[cols].iloc[[-1]].reset_index(drop=True)
+    _table_with_total(df, sty, total_df, raw, pct_cols, 1.0, min(38 + 35 * len(df), 460),
+                      _col_config(df, "Category", cmp_short, raw), f"cat_{raw}")
