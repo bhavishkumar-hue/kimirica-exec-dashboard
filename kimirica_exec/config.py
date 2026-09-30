@@ -230,6 +230,11 @@ EXCLUDED_CATEGORIES = ["Consumables", "Consumable", "Freebie", "Freebies", "Prim
 CHANNEL_ALIASES: dict[str, str] = {
     "website_kimirica": "Website",   # AOP tables
     "az_uae": "Amazon-UAE",
+    # Ad spends table only: these are ad platforms/spend categories for the website, not
+    # channels of their own (owner, Sep 2026).
+    "Google": "Website",
+    "Meta": "Website",
+    "Retention": "Website",
 }
 
 # Growth everywhere (cards, channel table, drivers) is measured on MRP sales,
