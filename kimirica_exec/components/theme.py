@@ -148,14 +148,47 @@ header[data-testid="stHeader"] {{ background: transparent; }}
    same column_config -- see the long comment in components/tables.py for why (short version:
    st.dataframe's column-sort can't exclude a single row, and its canvas-rendered grid has no
    externally-readable column widths to match with anything else, so identical rendering is the
-   only way to guarantee the two line up). Both keep their own full corner rounding; the wrapper's
-   own gap (Python gap= param) gets overridden by the broader
-   `[class*="st-key-panel"] [data-testid="stVerticalBlock"]` rule above, since that's a descendant
-   selector reaching into every nested container inside any panel_* section, including this one --
-   so it's pinned here too, as a single compound selector (class + data-testid on the SAME element,
-   no space) with !important so it wins regardless of which rule loaded last. */
+   only way to guarantee the two line up). The wrapper's own gap (Python gap= param) gets
+   overridden by the broader `[class*="st-key-panel"] [data-testid="stVerticalBlock"]` rule above,
+   since that's a descendant selector reaching into every nested container inside any panel_*
+   section, including this one -- so it's pinned here too, as a single compound selector (class +
+   data-testid on the SAME element, no space) with !important so it wins regardless of which rule
+   loaded last. */
 [data-testid="stVerticalBlock"][class*="st-key-tbl_"],
 [data-testid="stVerticalBlock"][class*="st-key-cat_"] {{ gap: 4px !important; }}
+
+/* The Total row's own header is redundant -- the table above it already labels every column --
+   and having two header rows is what made it read as a second, disconnected table. Streamlit's
+   dataframe grid draws its header on its own overlay <canvas> with no data-testid, separate from
+   the body canvas (data-testid="data-grid-canvas"); confirmed by toggling each canvas's visibility
+   on the live page and watching which one the header text disappeared from. Hiding that overlay
+   removes only the header text; the blank space it leaves is then clipped away by capping the
+   wrapping element to one row's height and shifting the dataframe up underneath it by the header
+   canvas's own height. Both pixel numbers (37, 36) came from measuring the live page -- they are
+   unrelated to the 38/35 used for sizing in tables.py, and would need re-measuring if a Streamlit
+   upgrade changes the grid's header/row pixel height. */
+[class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type,
+[class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type {{
+  height: 37px !important; overflow: hidden;
+}}
+/* The inner stDataFrame keeps its own default border/radius (the generic rule above) completely
+   untouched -- adding or removing a border here shifts how many pixels the grid renders itself at
+   (confirmed by measuring it: giving this element its own border made it 2px NARROWER than the main
+   table, because the grid sizes its own canvas off this element's box, border included). Only the
+   position moves, so the width/border math stays byte-for-byte identical to the main table -- the
+   bottom of its already-rounded box is what ends up on screen once the top is clipped away above. */
+[class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type [data-testid="stDataFrame"],
+[class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type [data-testid="stDataFrame"] {{
+  margin-top: -36px !important;
+}}
+[class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type canvas:not([data-testid="data-grid-canvas"]),
+[class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type canvas:not([data-testid="data-grid-canvas"]) {{
+  visibility: hidden !important;
+}}
+[class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type [data-testid="stElementToolbar"],
+[class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type [data-testid="stElementToolbar"] {{
+  display: none !important;
+}}
 .stApp .note {{ font-size: 11.5px; color: {FAINT}; margin: 0; }}
 </style>
 """

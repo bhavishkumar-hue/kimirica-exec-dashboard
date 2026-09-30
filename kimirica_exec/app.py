@@ -196,6 +196,7 @@ for n in data.notes:
 # --------------------------------------------------------------------------- #
 # 1. Headline KPIs and pacing
 # --------------------------------------------------------------------------- #
+T.note(kpi_cards.PRE_CANCEL_NOTE)
 kpi_cards.render_kpis(snap, P, ads_available=ads is not None)
 gaps = M.coverage_notes(data.spans, P.cur_start, P.as_of)
 notes_line = [kpi_cards.AOV_NOTE]

@@ -10,6 +10,7 @@ from components.theme import esc
 AOV_NOTE = "AOV is ASP for channels where order data isn't available."
 UAE_DISCOUNT_NOTE = ("Amazon-UAE discount isn't shown: its MRP feed is still in testing, "
                      "so its figures are effectively gross only.")
+PRE_CANCEL_NOTE = "All figures are pre-cancellation and pre-returns."
 
 
 def _delta(value, label: str, neutral: bool = False, invert: bool = False) -> str:

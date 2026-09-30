@@ -137,7 +137,11 @@ def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, cmp_short: str, ex
     pct_cols = {"Discount": False, "MoM": True, "Ach.": False}
     sty = _styler(df, raw, pct_cols, expected)
     total_df = M.add_totals_row(tbl, key_col)[cols].iloc[[-1]].reset_index(drop=True)
-    _table_with_total(df, sty, total_df, raw, pct_cols, expected, min(38 + 35 * len(df), 560),
+    # No min(..., cap): a capped height shorter than the content forces an internal vertical
+    # scrollbar in the main grid but never in the one-row Total grid, which eats a few pixels of
+    # width from the main grid's columns only and throws off the alignment this whole design
+    # exists to guarantee. Exact-fit height means neither grid ever needs to scroll.
+    _table_with_total(df, sty, total_df, raw, pct_cols, expected, 38 + 35 * len(df),
                       _col_config(df, label, cmp_short, raw), f"tbl_{key_col}_{raw}")
 
 
@@ -149,5 +153,5 @@ def category_table(ct: pd.DataFrame, raw: bool, cmp_short: str) -> None:
     pct_cols = {"Discount": False, "MoM": True, "Share": False}
     sty = _styler(df, raw, pct_cols)
     total_df = M.add_totals_row(ct, "Category")[cols].iloc[[-1]].reset_index(drop=True)
-    _table_with_total(df, sty, total_df, raw, pct_cols, 1.0, min(38 + 35 * len(df), 460),
+    _table_with_total(df, sty, total_df, raw, pct_cols, 1.0, 38 + 35 * len(df),
                       _col_config(df, "Category", cmp_short, raw), f"cat_{raw}")
