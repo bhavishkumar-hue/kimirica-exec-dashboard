@@ -71,6 +71,13 @@ BQ_LOCATION: str = str(_get("BQ_LOCATION", "") or "")  # blank = let BigQuery re
 # configured at all, the app also falls back to demo data and says so.
 DEMO_MODE: bool = _bool(_get("DEMO_MODE", "false"))
 
+# Streamlit Community Cloud gates a "restricted" app's viewer list *before* the app container
+# boots, which also blocks a scheduled keep-alive ping from ever reaching it (it never gets past
+# the login wall, so the app still sleeps). Sharing is kept "public" at the platform level instead,
+# and this password gates the data inside the app itself -- see app.py's require_password().
+# Blank means no gate (e.g. local dev, DEMO_MODE).
+APP_PASSWORD: str = str(_get("APP_PASSWORD", "") or "")
+
 TIMEZONE = "Asia/Kolkata"
 
 

@@ -5,6 +5,7 @@ Run:  python -m streamlit run app.py
 from __future__ import annotations
 
 import datetime as dt
+import hmac
 
 import pandas as pd
 import streamlit as st
@@ -23,6 +24,32 @@ from components import charts, insights, kpi_cards, tables  # noqa: E402
 from components import theme as T  # noqa: E402
 
 T.inject_css()
+
+
+def require_access() -> None:
+    """Sharing has to stay "public" at the Streamlit Cloud level, or the scheduled keep-alive ping
+    (a plain HTTP request with no Google login) never gets past Streamlit's own viewer-list gate to
+    reach the app at all -- it would keep sleeping regardless of the ping. So the gate lives inside
+    the app instead: one shared password, kept in secrets as APP_PASSWORD. Blank means no gate
+    (local dev, or before it's set in Streamlit Cloud secrets)."""
+    if not config.APP_PASSWORD or st.session_state.get("authed"):
+        return
+    T.header()
+    _, mid, _ = st.columns([1, 1.1, 1])
+    with mid:
+        with st.form("login"):
+            pw = st.text_input("Password", type="password", label_visibility="collapsed",
+                               placeholder="Password")
+            submitted = st.form_submit_button("Enter", use_container_width=True)
+        if submitted and hmac.compare_digest(pw.encode(), config.APP_PASSWORD.encode()):
+            st.session_state["authed"] = True
+            st.rerun()
+        elif submitted:
+            st.error("Wrong password.")
+    st.stop()
+
+
+require_access()
 
 
 # --------------------------------------------------------------------------- #
