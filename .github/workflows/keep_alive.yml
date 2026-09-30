@@ -10,7 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Visit the dashboard
+        # --retry: a Streamlit Cloud redeploy (triggered by every push) briefly refuses
+        # connections while it restarts -- without a retry, a ping landing in that window fails
+        # the whole job and emails a false-alarm failure notice instead of just trying again.
         run: |
-          curl -sSL --max-time 30 -o /dev/null -w "HTTP %{http_code}\n" \
+          curl -sSL --max-time 30 --retry 3 --retry-delay 10 --retry-connrefused \
+            -o /dev/null -w "HTTP %{http_code}\n" \
             -A "Mozilla/5.0 (keep-alive ping; +https://github.com/${{ github.repository }})" \
             "https://kimirica-exec-dashboardgit-fryjcdfq4rjxcyvsctdpyq.streamlit.app/"
