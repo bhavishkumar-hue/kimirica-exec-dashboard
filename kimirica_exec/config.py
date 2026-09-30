@@ -212,7 +212,7 @@ WEEKLY_OVERDUE_DAYS = 9
 
 # Freebie categories: removed from every metric (MRP, gross, quantity, AOV, ASP, category views).
 # Matched case-insensitively, ignoring spaces and punctuation.
-EXCLUDED_CATEGORIES = ["Consumables", "Consumable", "Freebie", "Freebies", "Primary",
+EXCLUDED_CATEGORIES = ["Consumables", "Consumable", "Freebie", "Freebies", "Primary", "Secondary",
                        "Uncategorised", "Uncategorized"]
 
 # Map source channel names onto the dashboard's names, e.g. {"Amazon SC": "Amazon-SC"}.

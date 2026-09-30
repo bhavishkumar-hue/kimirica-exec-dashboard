@@ -39,7 +39,7 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
 ## Business rules (agreed with the owner)
 
 - Unloaded days are NULL, never zero. NULL stays NULL end to end (sums use `min_count=1`).
-- **Freebie categories** (Consumables, Freebie, Primary, Uncategorised, any spelling) are dropped at load
+- **Freebie categories** (Consumables, Freebie, Primary, Secondary, Uncategorised, any spelling) are dropped at load
   from everything, including MRP. Owner hasn't confirmed whether MRP should keep them.
 - **Gross fallback:** sales master -> weekly table (real category match, else spread by MRP share --
   "Unmapped" is normalized to no-category at load, so it can't falsely fail to match a real category
