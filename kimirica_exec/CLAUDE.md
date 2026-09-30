@@ -95,7 +95,7 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
 - Header is just the Kimirica logo, centred. No status line.
 - A "Refresh data" button sits at the very bottom of the page (after Highlights), clears all caches
   and reruns. Owner reversed the earlier "no refresh button" rule -- keep it there.
-- All KPI cards the same size: 4 x 2 grid (MRP, gross, net, discount / quantity, AOV, ASP, ad spends).
+- All KPI cards the same size: 3 x 3 grid (MRP, gross, net / discount, quantity, AOV / ASP, ad spends, ROAS).
 - Pacing ("Current month trend" / "Current FY trend"): month and year panels side by side; AOP, achieved,
   projected, pace; figures on the bar. Always describes the latest loaded month/FY to date, regardless of
   the View/date filters (same for Highlights). **No "Needs attention" section** -- owner had it removed
@@ -103,8 +103,11 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
 - Monthly trend: bars, last year as faint ghost bars; tooltip shows only value, last year, YoY, MoM.
 - Section order: cards, pacing, channel table, category table, what-moved + AOP vs actual,
   monthly trend, highlights.
-- Pacing bar's vertical tick is "today" (share of the month/year elapsed -- what achievement is
-  colour-graded against); it's labelled "Today (X% elapsed)" directly on the bar, not left unexplained.
+- Pacing bar has no vertical "today" tick (owner had it removed, Sep 2026) -- just the achieved/
+  projected fill and the AOP/Achieved/Projected/Pace stats underneath.
+- Channel performance table has an Ad spend column (money-formatted, hidden if the channel/group has
+  no ad spend at all). Myntra/Nykaa/Tira's ad spend is a hardcoded monthly total, not daily --
+  see `config.CHANNEL_AD_SPEND_ABS`.
 - Table growth column header states the actual comparison ("Growth (MRP) vs LMTD" / "... vs LY" /
   "... vs Comparison period", from `P.cmp_short`), not just "Growth (MRP)".
 - **Dark mode**: Streamlit detects the viewer's OS/browser preference itself (`st.context.theme`,

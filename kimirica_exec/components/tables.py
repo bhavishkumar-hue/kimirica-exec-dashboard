@@ -26,7 +26,7 @@ import config
 import metrics as M
 from components import theme as T
 
-MONEY = ["MRP sales", "Gross sales", "Net sales", "Target"]
+MONEY = ["MRP sales", "Gross sales", "Net sales", "Target", "Ad spend"]
 PRICES = ["AOV", "ASP"]
 
 
@@ -79,6 +79,7 @@ def _help(cmp_short: str) -> dict:
         "Discount": "1 − gross sales ÷ MRP sales",
         "AOV": "Gross sales ÷ orders, or ASP where orders aren't tracked",
         "ASP": "Gross sales ÷ units",
+        "Ad spend": "Ad spend for the selected period",
         "MoM": f"{basis} vs {cmp_short}",
         "Target": "AOP for the months in the selected period",
         "Ach.": "Achieved so far ÷ AOP. Green when on pace for the time elapsed",
@@ -130,9 +131,12 @@ def _table_with_total(df: pd.DataFrame, sty, total_df: pd.DataFrame, raw: bool,
 
 def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, cmp_short: str, expected: float = 1.0) -> None:
     label = "Channel" if key_col == "channel" else "Channel group"
-    cols = [key_col, "MRP sales", "Gross sales", "Net sales", "Discount", "AOV", "ASP", "MoM", "Target", "Ach."]
+    cols = [key_col, "MRP sales", "Gross sales", "Net sales", "Discount", "AOV", "ASP",
+           "Ad spend", "MoM", "Target", "Ach."]
     if tbl["Target"].isna().all():
         cols = [c for c in cols if c not in ("Target", "Ach.")]
+    if tbl["Ad spend"].isna().all():
+        cols = [c for c in cols if c != "Ad spend"]
     df = tbl[cols].reset_index(drop=True)
     pct_cols = {"Discount": False, "MoM": True, "Ach.": False}
     sty = _styler(df, raw, pct_cols, expected)

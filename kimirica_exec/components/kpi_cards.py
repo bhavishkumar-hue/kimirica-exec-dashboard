@@ -40,8 +40,11 @@ def render_kpis(s: dict, P: M.Periods, ads_available: bool) -> None:
         ad_card = _card("Ad spends", M.fmt_inr(cur["ad_spend"]), _delta(s["ad_mom"], vs, neutral=True),
                         (f"{M.fmt_pct(cur['ad_share'], signed=False)} of gross"
                          if cur["ad_share"] is not None else f"{ref} {M.fmt_inr(prev['ad_spend'])}"))
+        roas_card = _card("ROAS", M.fmt_x(cur["roas"]), _delta(s["roas_mom"], vs),
+                          f"{ref} {M.fmt_x(prev['roas'])}")
     else:
         ad_card = _card("Ad spends", "—", _delta(None, vs), "Not connected")
+        roas_card = _card("ROAS", "—", _delta(None, vs), "Not connected")
 
     cards = [
         _card("MRP sales", M.fmt_inr(cur["mrp"]), _delta(s["mrp_mom"], vs),
@@ -60,34 +63,28 @@ def render_kpis(s: dict, P: M.Periods, ads_available: bool) -> None:
         _card("ASP", M.fmt_price(cur["asp"]), _delta(s["asp_mom"], vs),
               f"{ref} {M.fmt_price(prev['asp'])}"),
         ad_card,
+        roas_card,
     ]
     st.markdown(f'<div class="kpi-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
 
 
-def _bar(achieved_pct: float, projected_pct: float, elapsed_pct: float,
-         achieved_text: str, projected_text: str) -> str:
+def _bar(achieved_pct: float, projected_pct: float, achieved_text: str, projected_text: str) -> str:
     a, pr = min(achieved_pct, 1.0) * 100, min(projected_pct, 1.0) * 100
-    mark = max(0.0, min(elapsed_pct, 1.0)) * 100
     return (f'<div class="pace-bar">'
             f'<div class="pace-proj" style="width:{pr:.1f}%"></div>'
             f'<div class="pace-fill" style="width:{a:.1f}%"><span>{esc(achieved_text)}</span></div>'
             f'<div class="pace-proj-label" style="left:{pr:.1f}%">{esc(projected_text)}</div>'
-            # The vertical line marks today, i.e. how much of the month/year has elapsed --
-            # what achievement is being colour-graded against (on pace if achieved has caught up
-            # to this line; behind if it hasn't). Labelled directly since it isn't self-explanatory.
-            f'<div class="pace-mark" style="left:calc({mark:.1f}% - 1px)"></div>'
-            f'<div class="pace-mark-label" style="left:{mark:.1f}%">Today ({mark:.0f}% elapsed)</div>'
             f'</div>')
 
 
 def _panel(title: str, period: str, target, achieved, ach, projection, projected_ach, pace,
-           elapsed: float, estimated: bool) -> str:
+           estimated: bool) -> str:
     if not target:
         return (f'<div class="pace"><div class="pace-top"><div class="pace-title">{esc(title)}</div>'
                 f'<div class="pace-meta">{esc(period)}</div></div>'
                 f'<div class="empty">No AOP for this selection.</div></div>')
     bar = _bar(
-        (achieved or 0) / target, (projection or 0) / target, elapsed,
+        (achieved or 0) / target, (projection or 0) / target,
         f"{M.fmt_inr(achieved)}  {M.fmt_pct(ach, signed=False)}",
         f"projected {M.fmt_inr(projection)}  {M.fmt_pct(projected_ach, signed=False)}",
     )
@@ -113,12 +110,12 @@ def render_pacing(s: dict, P: M.Periods) -> None:
         "Current month trend", f"{P.as_of:%B %Y}, {P.days_left} days left",
         s["month_target"], s["month_achieved"], s["month_ach"],
         s["target_projection"], s["projected_ach"], s["current_rr"],
-        P.month_progress, s["month_target_estimated"],
+        s["month_target_estimated"],
     )
     year = _panel(
         "Current FY trend", f"{P.year_label.replace(' to date', '')}, day {P.year_days_elapsed} of {P.year_days}",
         s["year_target"], s["year_actual"], s["year_ach"],
         s["year_projection"], s["year_projected_ach"], s["year_rr"],
-        P.year_progress, s["year_target_estimated"],
+        s["year_target_estimated"],
     )
     st.markdown(f'<div class="pace-wrap">{month}{year}</div>', unsafe_allow_html=True)

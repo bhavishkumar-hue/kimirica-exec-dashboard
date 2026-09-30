@@ -199,7 +199,7 @@ if sel_categories:
 scope_channels = sel_channels  # empty = every channel, including any only present in the AOP tables
 aop = None if sel_categories else data.aop  # the AOP plan isn't split by category
 snap = M.kpi_snapshot(cd, ads, P, aop, scope_channels)
-tbl = M.channel_table(cd, P, "channel", aop, scope_channels)
+tbl = M.channel_table(cd, P, "channel", aop, scope_channels, ads)
 ads_today, _ = M.prepare_ads(data.ads, sel_channels, PT)
 snap_today = M.kpi_snapshot(cd_today, None if sel_categories else ads_today, PT, aop, scope_channels)
 tbl_today = M.channel_table(cd_today, PT, "channel", aop, scope_channels)
@@ -244,7 +244,7 @@ with st.container(key="panel_channels"):
         with c2:
             raw = st.toggle("Full values", key="raw_values")
     key_col = "channel" if view == "Channels" else "group"
-    view_tbl = tbl if key_col == "channel" else M.channel_table(cd, P, "group", aop, scope_channels)
+    view_tbl = tbl if key_col == "channel" else M.channel_table(cd, P, "group", aop, scope_channels, ads)
     if view_tbl.empty:
         empty("No sales for this selection.")
     else:

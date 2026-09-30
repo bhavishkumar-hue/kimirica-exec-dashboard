@@ -146,6 +146,23 @@ def _prepare_ads(df):
     return _prep_common(df, ["ad_spend"])
 
 
+def _apply_ad_spend_overrides(ads: pd.DataFrame) -> pd.DataFrame:
+    """See config.CHANNEL_AD_SPEND_ABS: replaces a channel's daily ad spend for the given month with
+    the owner's own monthly total, split evenly across that month's calendar days."""
+    if not config.CHANNEL_AD_SPEND_ABS or ads.empty:
+        return ads
+    ads = ads.copy()
+    for channel, months in config.CHANNEL_AD_SPEND_ABS.items():
+        for month, total in months.items():
+            start = pd.Timestamp(month)
+            end = start + pd.offsets.MonthEnd(0)
+            ads = ads[~((ads["channel"] == channel) & ads["date"].between(start, end))]
+            days = pd.date_range(start, end, freq="D")
+            synthetic = pd.DataFrame({"date": days, "channel": channel, "ad_spend": total / len(days)})
+            ads = pd.concat([ads, synthetic], ignore_index=True)
+    return ads
+
+
 def _prepare_targets(df):
     return _prep_common(df, ["target_sales", "achieved_sales"])
 
@@ -375,7 +392,7 @@ def load_dashboard_data() -> DashboardData:
     ads = None
     if config.BQ_AD_TABLE:
         try:
-            ads = fetch_ads(hist_start, load_to)
+            ads = _apply_ad_spend_overrides(fetch_ads(hist_start, load_to))
         except Exception as exc:
             notes.append(f"Ad spends table could not be read ({exc}).")
     targets = None

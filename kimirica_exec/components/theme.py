@@ -86,8 +86,8 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 .k-sec h3 {{ font-size: 17px; font-weight: 600; color: {INK}; margin: 0; padding: 0; letter-spacing: -0.01em; }}
 .k-sec p {{ font-size: 12.5px; color: {MUTED}; margin: 3px 0 0; }}
 
-/* KPI cards: one grid, every card the same size */
-.kpi-grid {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 4px; }}
+/* KPI cards: one grid, every card the same size. Nine cards (with ROAS) divide evenly into 3x3. */
+.kpi-grid {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 4px; }}
 @media (max-width: 1100px) {{ .kpi-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
 .kpi-lead {{ box-shadow: inset 3px 0 0 {ACCENT}; }}
 .kpi {{ background: {SURFACE}; border: 1px solid {LINE}; border-radius: 14px; padding: 16px clamp(12px, 1.2vw, 18px) 14px; min-width: 0; }}
@@ -124,9 +124,6 @@ header[data-testid="stHeader"] {{ background: transparent; }}
   -45deg, {ACCENT_SOFT}, {ACCENT_SOFT} 4px, {STRIPE} 4px, {STRIPE} 8px); }}
 .pace-proj-label {{ position: absolute; top: 28px; transform: translateX(-100%); font-size: 11.5px;
   color: {MUTED}; white-space: nowrap; font-variant-numeric: tabular-nums; }}
-.pace-mark {{ position: absolute; top: -4px; width: 2px; height: 32px; background: {INK}; opacity: .55; }}
-.pace-mark-label {{ position: absolute; top: -18px; transform: translateX(-50%); font-size: 10.5px;
-  color: {MUTED}; white-space: nowrap; }}
 .pace-stats {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 26px; }}
 .pace-stat .l {{ font-size: 11.5px; color: {MUTED}; }}
 .pace-stat .v {{ font-size: 17px; font-weight: 600; color: {INK}; font-variant-numeric: tabular-nums;

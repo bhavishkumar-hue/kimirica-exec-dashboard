@@ -91,6 +91,13 @@ def fmt_price(v) -> str:
     return fmt_inr_full(v) if abs(float(v)) < 1e5 else fmt_inr(v)
 
 
+def fmt_x(v) -> str:
+    """ROAS as a multiplier: 4.2x."""
+    if is_na(v):
+        return "—"
+    return f"{float(v):.1f}x"
+
+
 def fmt_count(v) -> str:
     if is_na(v):
         return "—"
@@ -232,20 +239,12 @@ class Periods:
         return self.days_in_month - self.days_elapsed
 
     @property
-    def month_progress(self) -> float:
-        return self.days_elapsed / self.days_in_month
-
-    @property
     def year_days_elapsed(self) -> int:
         return (self.as_of - self.ytd_start).days + 1
 
     @property
     def year_days(self) -> int:
         return (self.year_end - self.ytd_start).days + 1
-
-    @property
-    def year_progress(self) -> float:
-        return self.year_days_elapsed / self.year_days
 
     @property
     def fy_label(self) -> str:
@@ -526,7 +525,7 @@ def block(w: pd.DataFrame, days: int | None = None, ads: pd.DataFrame | None = N
         "est": bool((w["est"] > 0).any()) if len(w) and "est" in w else False,
         "target": t_tgt, "target_actual": t_act, "ach": ratio(t_act, t_tgt),
         "per_day": ratio(gross, days) if days else None,
-        "ad_spend": ad, "ad_share": ratio(ad, gross),
+        "ad_spend": ad, "ad_share": ratio(ad, gross), "roas": ratio(gross, ad),
     }
 
 
@@ -584,6 +583,7 @@ def kpi_snapshot(cd: pd.DataFrame, ads: pd.DataFrame | None, P: Periods,
     s["asp_mom"] = pct(cur["asp"], prev["asp"])
     s["ach_change"] = _diff(cur["ach"], prev["ach"])
     s["ad_mom"] = pct(cur["ad_spend"], prev["ad_spend"])
+    s["roas_mom"] = pct(cur["roas"], prev["roas"])
     s["qty_mom"] = pct(cur["qty"], prev["qty"])
 
     ytd = block(window(cd, P.ytd_start, P.as_of))
@@ -695,6 +695,7 @@ def add_totals_row(out: pd.DataFrame, label_col: str) -> pd.DataFrame:
         "LMTD": lmtd,
         "Δ vs LMTD": None if is_na(mrp) or is_na(lmtd) else mrp - lmtd,
         "Orders": s("Orders"), "LMTD orders": s("LMTD orders"),
+        "Ad spend": s("Ad spend"),
     }
     if "Target" in out:
         target = s("Target")
@@ -705,8 +706,19 @@ def add_totals_row(out: pd.DataFrame, label_col: str) -> pd.DataFrame:
     return pd.concat([out, pd.DataFrame([total])], ignore_index=True)
 
 
+def _ad_spend_by_key(ads: pd.DataFrame | None, key: str, start, end, idx) -> pd.Series:
+    """Ad spend isn't split by category, but it can be summed by channel or channel group."""
+    if ads is None or ads.empty:
+        return pd.Series(np.nan, index=idx)
+    a = window(ads, start, end)
+    if key == "group":
+        a = a.assign(group=a["channel"].map(config.CHANNEL_GROUPS).fillna("Other"))
+    return a.groupby(key)["ad_spend"].sum(min_count=1).reindex(idx)
+
+
 def channel_table(cd: pd.DataFrame, P: Periods, key: str = "channel",
-                  aop: pd.DataFrame | None = None, channels: list[str] | None = None) -> pd.DataFrame:
+                  aop: pd.DataFrame | None = None, channels: list[str] | None = None,
+                  ads: pd.DataFrame | None = None) -> pd.DataFrame:
     mtd = _grouped(window(cd, P.cur_start, P.as_of), key)
     lmtd = _grouped(window(cd, P.cmp_start, P.cmp_end), key)
     plan = aop_for(aop, channels or [], P.aop_start, P.mtd_start, by=key)
@@ -730,6 +742,7 @@ def channel_table(cd: pd.DataFrame, P: Periods, key: str = "channel",
         out["Ach."] = _ratio_col(mtd["t_act"], mtd["target_sales"])
     out["Orders"] = mtd["orders"]
     out["LMTD orders"] = lmtd["orders"]
+    out["Ad spend"] = _ad_spend_by_key(ads, key, P.cur_start, P.as_of, idx)
     out = out.dropna(subset=["MRP sales", "LMTD", "Target"], how="all")
     return out.sort_values("MRP sales", ascending=False, na_position="last").reset_index()
 
