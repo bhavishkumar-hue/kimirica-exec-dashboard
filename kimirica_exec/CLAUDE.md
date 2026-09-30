@@ -106,8 +106,8 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
 - Pacing bar has no vertical "today" tick (owner had it removed, Sep 2026) -- just the achieved/
   projected fill and the AOP/Achieved/Projected/Pace stats underneath.
 - Channel performance table has an Ad spend column (money-formatted, hidden if the channel/group has
-  no ad spend at all). Myntra/Nykaa/Tira's ad spend is a hardcoded monthly total, not daily --
-  see `config.CHANNEL_AD_SPEND_ABS`.
+  no ad spend at all). Owner now enters Myntra/Nykaa/Tira's monthly ad spend directly into
+  `Executive_Spends_Master` -- no hardcoded override in config.py (removed Sep 2026).
 - Table growth column header states the actual comparison ("Growth (MRP) vs LMTD" / "... vs LY" /
   "... vs Comparison period", from `P.cmp_short`), not just "Growth (MRP)".
 - **Dark mode**: Streamlit detects the viewer's OS/browser preference itself (`st.context.theme`,

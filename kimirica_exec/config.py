@@ -206,17 +206,6 @@ ZEPTO_DISCOUNT_ABS: dict[str, float] = {
     "2026-07": 426_727, "2026-08": 1_690_115, "2026-09": 986_025,
 }
 
-# TEMPORARY (owner, Sep 2026): Myntra, Nykaa and Tira report ad spend to us as a single monthly
-# figure, not a daily feed, so Executive_Spends_Master's daily rows for them aren't reliable. These
-# owner-given monthly totals replace whatever that table holds for the channel and month, split
-# evenly across the month's calendar days (see bigquery._apply_ad_spend_overrides). Add a new
-# entry each month as the owner gives the next figure; Nykaa's is a rounded estimate, not exact.
-CHANNEL_AD_SPEND_ABS: dict[str, dict[str, float]] = {
-    "Myntra": {"2026-09": 74_686},
-    "Nykaa": {"2026-09": 800_000},
-    "Tira": {"2026-09": 100_000},
-}
-
 # Channels refreshed weekly; used only to flag an overdue weekly load.
 WEEKLY_GROSS_CHANNELS = ["Blinkit", "Zepto", "Swiggy", "FK-Minutes", "Myntra", "Nykaa", "Tira"]
 WEEKLY_OVERDUE_DAYS = 9
