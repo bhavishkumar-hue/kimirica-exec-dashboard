@@ -66,11 +66,12 @@ def fmt_inr(v, prefix: str = "₹") -> str:
         return "—"
     sign = "−" if v < 0 else ""
     a = abs(float(v))
-    if a >= 1e7:
+    # Pick the unit from the rounded figure, so 99,999 reads ₹1.0L rather than ₹100.0K.
+    if a >= 1e7 or round(a / 1e5, 1) >= 100:
         body = f"{a / 1e7:.2f}Cr" if a < 1e9 else f"{a / 1e7:,.0f}Cr"
-    elif a >= 1e5:
+    elif a >= 1e5 or round(a / 1e3, 1) >= 100:
         body = f"{a / 1e5:.1f}L"
-    elif a >= 1e3:
+    elif a >= 1e3 or round(a) >= 1000:
         body = f"{a / 1e3:.1f}K"
     else:
         body = f"{a:.0f}"

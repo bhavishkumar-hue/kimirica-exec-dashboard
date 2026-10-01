@@ -116,6 +116,14 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   (`metrics.coverage_notes` / `bigquery._spans` were removed along with their only caller).
 - Header: Kimirica logo, centred, with "Executive Business Performance" as a small uppercase
   subheading directly under it (`.k-sub` in theme.py; owner, Oct 2026). No status line otherwise.
+- Filter headings (Date, Month, Compare with, Channels, Categories) share one style: 12.5px, bold,
+  ink. The view control is labelled "Date" (was "View"); its Custom picker is "Date range".
+  Segmented controls are 40px tall like the dropdowns so all headings sit on one line.
+- Total row lines: never put `overflow: hidden` on an ancestor of the Total grid -- it makes the grid
+  draw its column lines 1px left of the main table's. Its header is cut off with `clip-path` instead.
+  Measured 0px offset at 1280-1920px and 100/125/150% display scaling.
+- Dark mode's last-year ghost bars use `GHOST_FAINT` `#3B4842`; the old `#20262C` was invisible
+  against the panel.
 - "Refresh" is a small button at the very bottom of the page, right-aligned, after Highlights (owner,
   Oct 2026: at the top it was too easy to hit by accident). It uses `on_click=_refresh_data`, which
   clears every cache *before* the rerun the click triggers, so one rerun loads fresh data. Clearing

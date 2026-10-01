@@ -28,7 +28,7 @@ _DARK = dict(
     INK="#EDF1EF", MUTED="#9BA8A3", FAINT="#6E7A75", LINE="#2B322D", GRID="#1F2521",
     PAGE="#0E1117", SURFACE="#171B21", ACCENT="#4FB89C", ACCENT_SOFT="#1D3733", STRIPE="#284A44",
     POS="#3FCB86", NEG="#F0796A", WARN="#E3AE55", INPUT_BG="#1B2126", INPUT_BG_FILTERS="#1B2126",
-    SHADOW="rgba(0,0,0,.25)", GHOST_STRONG="#3A453E", GHOST_FAINT="#20262C",
+    SHADOW="rgba(0,0,0,.25)", GHOST_STRONG="#3A453E", GHOST_FAINT="#3B4842",
 )
 
 # Populated by _apply_theme() before anything else reads them; light values are the fallback if
@@ -86,6 +86,10 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 }}
 [class*="st-key-panel"] [data-testid="stVerticalBlock"] {{ gap: 0.75rem; }}
 .st-key-filters {{ background: {SURFACE}; border: 1px solid {LINE}; border-radius: 14px; padding: 12px 18px 14px; margin-bottom: 8px; }}
+/* One heading style for every filter, and segmented controls as tall as the dropdowns so all the
+   headings sit on one line (the shorter controls left "Date" / "Compare with" 8px lower). */
+.st-key-filters [data-testid="stWidgetLabel"] p {{ font-size: 12.5px; font-weight: 600; color: {INK}; }}
+.st-key-filters [data-testid="stButtonGroup"] button {{ min-height: 40px; }}
 
 /* header: logo + "Executive Business Performance" subheading, centred. */
 .k-head {{ text-align: center; padding: 6px 0 2px; margin-bottom: 8px; }}
@@ -172,15 +176,18 @@ header[data-testid="stHeader"] {{ background: transparent; }}
    dataframe grid draws its header on its own overlay <canvas> with no data-testid, separate from
    the body canvas (data-testid="data-grid-canvas"); confirmed by toggling each canvas's visibility
    on the live page and watching which one the header text disappeared from. Hiding that overlay
-   removes only the header text; the blank space it leaves is then clipped away by capping the
-   wrapping element to one row's height and shifting the dataframe up underneath it by the header
-   canvas's own height. 30 is tables.py's own ROW_HEIGHT (the row_height= passed to st.dataframe,
-   so this always matches); 36 is the header canvas's own height, which stays fixed regardless of
-   ROW_HEIGHT -- confirmed by remeasuring after changing ROW_HEIGHT and seeing the header canvas
-   unchanged. Both would need re-measuring if a Streamlit upgrade changes the grid's rendering. */
+   removes only the header text; the blank band it leaves is cut off with clip-path and the grid is
+   pulled up by the same 36px (the header canvas's own height, fixed regardless of ROW_HEIGHT --
+   remeasure if a Streamlit upgrade changes the grid). The negative bottom margin gives back the
+   36px the wrapper would otherwise keep, since Streamlit pins the frame's own height.
+
+   No overflow: hidden anywhere above the grid: an earlier version cropped with a 30px-tall
+   overflow-hidden wrapper (whose height Streamlit's own styles overrode anyway), and any
+   overflow-hidden ancestor made the grid draw its column lines 1px left of the main table's --
+   measured at 100/125/150% display scaling. clip-path hides the same pixels without that. */
 [class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type,
 [class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type {{
-  height: 30px !important; overflow: hidden;
+  margin-bottom: -36px;
 }}
 /* The inner stDataFrame keeps its own default border/radius (the generic rule above) completely
    untouched -- adding or removing a border here shifts how many pixels the grid renders itself at
@@ -190,7 +197,7 @@ header[data-testid="stHeader"] {{ background: transparent; }}
    bottom of its already-rounded box is what ends up on screen once the top is clipped away above. */
 [class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type [data-testid="stDataFrame"],
 [class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type [data-testid="stDataFrame"] {{
-  margin-top: -36px !important;
+  margin-top: -36px !important; clip-path: inset(36px 0 0 0);
 }}
 [class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type canvas:not([data-testid="data-grid-canvas"]),
 [class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type canvas:not([data-testid="data-grid-canvas"]) {{

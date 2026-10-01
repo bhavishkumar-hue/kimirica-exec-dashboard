@@ -150,7 +150,7 @@ with st.container(key="filters"):
               else [2.2, 1.5, 2.8, 1.7, 1.4])
     f1, f2, f3, f4, f5 = st.columns(widths, vertical_alignment="bottom")
     with f1:
-        mode = st.segmented_control("View", list(M.MODES), default="Month", key="view_mode") or "Month"
+        mode = st.segmented_control("Date", list(M.MODES), default="Month", key="view_mode") or "Month"
     with f2:
         if mode == "Month":
             month = st.selectbox("Month", months, format_func=_month_label, key="sel_month")
@@ -161,7 +161,7 @@ with st.container(key="filters"):
         else:
             default = st.session_state.get("custom_valid",
                                            (max(data.min_date, data.max_date - dt.timedelta(days=89)), data.max_date))
-            picked = st.date_input("Dates", value=default, min_value=data.min_date, max_value=data.max_date,
+            picked = st.date_input("Date range", value=default, min_value=data.min_date, max_value=data.max_date,
                                    format="DD/MM/YYYY", key="custom_dates")
             if isinstance(picked, (tuple, list)) and len(picked) == 2:
                 st.session_state["custom_valid"] = (picked[0], picked[1])
