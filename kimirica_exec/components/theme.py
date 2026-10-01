@@ -61,6 +61,10 @@ html, body, .stApp, .stApp p, .stApp li, .stApp div, .stApp label, .stApp input,
 .block-container {{ padding: 0.6rem 2.6rem 4rem; max-width: 1560px; }}
 [data-testid="stToolbar"], [data-testid="stDecoration"], .stAppDeployButton, footer {{ display: none !important; }}
 header[data-testid="stHeader"] {{ background: transparent; }}
+/* While a rerun is in progress Streamlit tags every element from the previous run data-stale="true"
+   and fades it out. A Refresh reloads BigQuery for several seconds, so the whole page sat washed out
+   that long. Keep it crisp instead; the new numbers swap in place when the run finishes. */
+[data-stale="true"] {{ opacity: 1 !important; transition: none !important; }}
 [data-testid="stMainBlockContainer"] > div > [data-testid="stVerticalBlock"] {{ gap: 1.25rem; }}
 
 /* widgets */
@@ -80,15 +84,7 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 [class*="st-key-panel"] [data-testid="stVerticalBlock"] {{ gap: 0.75rem; }}
 .st-key-filters {{ background: {SURFACE}; border: 1px solid {LINE}; border-radius: 14px; padding: 12px 18px 14px; margin-bottom: 8px; }}
 
-/* header: logo + "Executive Business Performance" subheading, centred. The Refresh button sits to
-   the right of the title, inside this SAME block (st-key-header_wrap wraps both T.header()'s
-   markdown and the button) -- position: absolute against this normally-sized block, not position:
-   fixed against the viewport, so it never adds its own slice of page-level gap above everything
-   else (that was the previous approach's problem: an early, otherwise-invisible sibling container
-   still consumed one "gap" worth of vertical space before the logo even rendered). */
-.st-key-header_wrap {{ position: relative; }}
-.st-key-header_wrap .st-key-refresh_fab {{ position: absolute; top: 8px; right: 0; width: auto; }}
-.st-key-header_wrap .st-key-refresh_fab button {{ padding: 4px 14px; font-size: 12.5px; }}
+/* header: logo + "Executive Business Performance" subheading, centred. */
 .k-head {{ text-align: center; padding: 6px 0 2px; margin-bottom: 8px; }}
 .k-logo {{ color: {INK}; line-height: 0; }}
 .k-logo svg {{ height: clamp(28px, 2.8vw, 38px); width: auto; }}

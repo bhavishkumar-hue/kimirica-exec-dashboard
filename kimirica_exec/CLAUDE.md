@@ -116,14 +116,14 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   (`metrics.coverage_notes` / `bigquery._spans` were removed along with their only caller).
 - Header: Kimirica logo, centred, with "Executive Business Performance" as a small uppercase
   subheading directly under it (`.k-sub` in theme.py; owner, Oct 2026). No status line otherwise.
-- "Refresh" sits to the right of the title, at the same height, inside the SAME block as the logo
-  (`st.container(key="header_wrap")` wraps both `T.header()` and `st.container(key="refresh_fab")`;
-  the button is `position: absolute` against that normally-sized wrapper, not `position: fixed`
-  against the viewport). This matters: a `position: fixed` button in its own top-level container was
-  tried first and rejected -- even though it visually floated correctly, that early, otherwise-empty
-  sibling container still consumed one flex `gap` worth of space before the logo, which read as an
-  oversized blank area at the top of the page. Anchoring inside the header's own block instead adds
-  no page-level space at all. Clears all caches and reruns.
+- "Refresh" is a small button at the very bottom of the page, right-aligned, after Highlights (owner,
+  Oct 2026: at the top it was too easy to hit by accident). It uses `on_click=_refresh_data`, which
+  clears every cache *before* the rerun the click triggers, so one rerun loads fresh data. Clearing
+  inline and then calling `st.rerun()` meant two reruns. A toast ("Refreshing data…") is the loading
+  cue, since the top-of-page spinner is off screen when the button is clicked.
+- `[data-stale="true"]` is forced to full opacity in theme.py. Streamlit fades every element from the
+  previous run while a rerun is in progress; a Refresh reloads BigQuery for several seconds, so the
+  whole page sat washed out that long (owner called it a glitch). Now numbers swap in place.
 - All KPI cards the same size: 3 x 3 grid (MRP, gross, net / discount, quantity, AOV / ASP, ad spends, ROAS).
 - Pacing ("Current month trend" / "Current FY trend"): month and year panels side by side; AOP, achieved,
   projected, pace; figures on the bar. Always describes the latest loaded month/FY to date, regardless of

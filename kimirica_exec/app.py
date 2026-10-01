@@ -219,13 +219,7 @@ with st.container(key="filters_caption"):
     T.note(f"{P.period_label}, compared with {P.cmp_period_label}.")
 
 with header_slot.container():
-    with st.container(key="header_wrap"):
-        T.header()
-        with st.container(key="refresh_fab"):
-            if st.button("Refresh", key="refresh_btn"):
-                clear_caches()
-                st.cache_data.clear()
-                st.rerun()
+    T.header()
     if config.SECRETS_ERROR:
         st.error("**`.streamlit/secrets.toml` couldn't be read, so BigQuery isn't connected and these "
                  f"numbers are not real.**\n\n{config.SECRETS_ERROR}\n\nEvery line must be "
@@ -326,6 +320,22 @@ with st.container(key="panel_monthly"):
 with st.container(key="panel_highlights"):
     T.section("Highlights")
     insights.highlights(M.insights(cd_today, PT, snap_today, tbl_today))
+
+# --------------------------------------------------------------------------- #
+# Refresh
+# --------------------------------------------------------------------------- #
+def _refresh_data() -> None:
+    # on_click runs before the rerun the click triggers, so that one rerun already loads fresh data.
+    # Clearing inline and then calling st.rerun() meant two reruns, the second aborting the first.
+    clear_caches()
+    st.cache_data.clear()
+    st.toast("Refreshing data…")
+
+
+with st.container(key="refresh_fab"):
+    _, rcol = st.columns([5, 1])
+    with rcol:
+        st.button("Refresh", key="refresh_btn", use_container_width=True, on_click=_refresh_data)
 
 # --------------------------------------------------------------------------- #
 # Sidebar: definitions only
