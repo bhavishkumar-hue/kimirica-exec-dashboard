@@ -421,14 +421,17 @@ def channel_daily(df: pd.DataFrame, categories: list[str],
     return add_aov_columns(out)
 
 
-def prepare_ads(ads: pd.DataFrame | None, channels: list[str], P: Periods) -> tuple[pd.DataFrame | None, bool]:
+def prepare_ads(ads: pd.DataFrame | None, channels: list[str]) -> tuple[pd.DataFrame | None, bool]:
     """Returns (ads, filtered). Ads are filtered by channel only when the table carries our channel names."""
     if ads is None or ads.empty:
         return None, False
     has_channels = ads["channel"].isin(config.CHANNELS).any()
     a = ads[ads["channel"].isin(channels)] if (channels and has_channels) else ads
-    a = a.assign(channel=a["channel"].fillna(""))
-    return add_lag(a, P), bool(channels and has_channels)
+    # No sales lag on spend: Amazon-VC's sales land a day late, so its sales window ends a day early,
+    # but its ad spend is recorded on time. Lagging spend too dropped VC's last day (Rs 1.26L on Sept
+    # 30) and the card stopped matching the spends table.
+    a = a.assign(channel=a["channel"].fillna(""), lag_td=pd.Timedelta(0))
+    return a, bool(channels and has_channels)
 
 
 def attach_targets(cd: pd.DataFrame, targets: pd.DataFrame | None, channels: list[str],

@@ -213,15 +213,14 @@ cd = M.add_lag(cd_raw, P)
 # Pacing, highlights and needs attention always describe the current month to date, whatever dates are picked
 PT = M.build_periods(last_day.replace(day=1), last_day, data.channel_last_date)
 cd_today = M.add_lag(cd_raw, PT)
-ads, ads_filtered = M.prepare_ads(data.ads, sel_channels, P)
+ads, _ = M.prepare_ads(data.ads, sel_channels)
 if sel_categories:
     ads = None  # ad spends aren't split by category
 scope_channels = sel_channels  # empty = every channel, including any only present in the AOP tables
 aop = None if sel_categories else data.aop  # the AOP plan isn't split by category
 snap = M.kpi_snapshot(cd, ads, P, aop, scope_channels)
 tbl = M.channel_table(cd, P, "channel", aop, scope_channels, ads)
-ads_today, _ = M.prepare_ads(data.ads, sel_channels, PT)
-snap_today = M.kpi_snapshot(cd_today, None if sel_categories else ads_today, PT, aop, scope_channels)
+snap_today = M.kpi_snapshot(cd_today, ads, PT, aop, scope_channels)
 tbl_today = M.channel_table(cd_today, PT, "channel", aop, scope_channels)
 in_scope = sorted(set(cd["channel"]))
 

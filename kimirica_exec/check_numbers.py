@@ -128,7 +128,8 @@ def main(start: dt.date, end: dt.date) -> None:
         print(f"  !! in the sales table but not in config.CHANNELS: {sorted(unknown)}")
     for label in ("weekly", "AOP", "spends"):
         if label in names and names[label]:
-            odd = names[label] - names["sales"]
+            # compared after CHANNEL_ALIASES, the way the dashboard sees them
+            odd = {n for n in names[label] if B.canonical_channel(str(n)) not in names["sales"]}
             if odd:
                 print(f"  !! in {label} but not in the sales table: {sorted(odd)} "
                       "-> add these to CHANNEL_ALIASES in config.py")
@@ -146,6 +147,27 @@ def main(start: dt.date, end: dt.date) -> None:
             name="target_dash") if "target_sales" in win else pd.DataFrame(columns=["channel", "target_dash"])
         print("\nAOP TARGETS: raw vs dashboard")
         print(_fmt(tg.merge(dash_t, on="channel", how="outer")))
+
+    # ---- 5b. ad spends ---------------------------------------------------------------------
+    if c.BQ_AD_TABLE and c.AD_COL_CHANNEL:
+        ad_raw = _raw(f"""
+            SELECT {c.AD_COL_CHANNEL} AS channel, SUM({c.AD_COL_SPEND}) AS spend_raw
+            FROM `{c.fqn(c.BQ_AD_TABLE)}` WHERE {c.AD_COL_DATE} BETWEEN @start AND @end
+            GROUP BY channel
+        """, start, end)
+        ad_raw["spend_raw"] = pd.to_numeric(ad_raw["spend_raw"], errors="coerce")
+        ad_raw["channel"] = ad_raw["channel"].map(lambda n: B.canonical_channel(str(n)) if pd.notna(n) else n)
+        ad_raw = ad_raw.groupby("channel", dropna=False)["spend_raw"].sum(min_count=1).reset_index()
+        ads, _ = M.prepare_ads(data.ads, [])
+        if ads is None:
+            ads = pd.DataFrame(columns=["date", "channel", "ad_spend"])
+        a = ads[(ads["date"] >= pd.Timestamp(start)) & (ads["date"] <= pd.Timestamp(end))]
+        dash_a = a.groupby("channel")["ad_spend"].sum(min_count=1).reset_index(name="spend_dash")
+        ac = ad_raw.merge(dash_a, on="channel", how="outer")
+        ac["diff"] = ac["spend_dash"].fillna(0) - ac["spend_raw"].fillna(0)
+        print("\nAD SPEND: raw vs dashboard  (channels after CHANNEL_ALIASES; diff should be 0)")
+        print(_fmt(ac))
+        print(f"  TOTAL raw {ac['spend_raw'].sum():,.0f}   dashboard {ac['spend_dash'].sum():,.0f}")
 
     # ---- 6. freebie categories excluded ----------------------------------------------------
     if c.COL_CATEGORY:

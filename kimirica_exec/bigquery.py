@@ -416,6 +416,6 @@ def _load_demo() -> DashboardData:
 
 
 def clear_caches() -> None:
-    for fn in (fetch_columns, fetch_freshness, fetch_recent, fetch_history,
-               fetch_weekly, fetch_ads, fetch_targets, fetch_aop_raw, combine):
+    for fn in (fetch_columns, fetch_freshness, fetch_recent, fetch_history, fetch_weekly, fetch_ads,
+               fetch_targets, fetch_aop_raw, fetch_website_ebo_orders, combine):
         fn.clear()

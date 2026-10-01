@@ -224,6 +224,7 @@ CHANNEL_ALIASES: dict[str, str] = {
     "Google": "Website",
     "Meta": "Website",
     "Retention": "Website",
+    "EBO Stores": "EBO(Stores)",
 }
 
 # Growth everywhere (cards, channel table, drivers) is measured on MRP sales,

@@ -85,7 +85,10 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   current daily pace. Channel/table achievement is coloured against the share of time elapsed, not
   against 100%.
 - **Amazon-VC** lags ~1 day; its latest date is detected at runtime and its current and comparison windows
-  end on that day number. Only flagged if later than its usual 1 day.
+  end on that day number. Only flagged if later than its usual 1 day. This lag applies to sales only,
+  never ad spend (`metrics.prepare_ads` sets lag 0): VC's spend is recorded on time, and lagging it
+  dropped its last day so the Ad spends card didn't match the spends table. `check_numbers.py` has an
+  "AD SPEND: raw vs dashboard" section; its diff should be 0 for every channel.
 - **Periods:** View = Month (default, this month to date) / Financial year / Custom. Compare = Previous
   period (LMTD for a month to date, full previous month for a completed month, previous FY same days,
   or for Custom the same dates one month earlier, or the same dates last year if the range spans more than one month) /
