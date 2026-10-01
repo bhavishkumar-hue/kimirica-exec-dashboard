@@ -49,24 +49,10 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   **Zepto is temporarily overridden** ahead of all of this: `config.ZEPTO_DISCOUNT_ABS` holds the
   owner's own monthly rupee discount for Apr-Sep 2026; discount% = that ÷ Zepto's own MRP that
   month. Remove once Zepto's weekly/sales-master gross is trustworthy again.
-- **A channel that's gone dark entirely** (no MRP loaded at all for several days, e.g. Tira stopping
-  for over a week -- not just a missing gross figure on top of real MRP) gets a gross estimate too,
-  via `estimates._fill_dark_channel_days`: for each day after the channel's last loaded date, one
-  synthetic row per category (anything seen in the last 28 days, so a category that didn't happen to
-  sell on the very last day is still covered), valued at that category's own LATEST available
-  discount (1 - gross/mrp from its single most recent real day, not an average over the window)
-  applied to that same day's MRP -- i.e. its last real daily figure carried forward flat, not a
-  smoothed historical average (owner, Oct 2026: averaging blurred a recent trend into a flat mean).
-  MRP stays NULL for these rows (it's the authoritative, actuals-only figure, per the NULL rule
-  above), so growth and the MRP-sorted channel table still show the gap honestly -- only gross, net
-  sales and anything rolling up from them (KPI cards, monthly trend) are carried forward so a
-  multi-day outage doesn't read as a sales collapse. Discount and ASP are computed from gross summed
-  only over rows that also have a real MRP / quantity (`metrics._grouped`'s `gross_for_discount` /
-  `gross_for_asp`, fed through `_gross_for_discount` / `_gross_for_asp` for the Total row) rather
-  than plain Gross sales -- otherwise a dark-fill day's gross lands in the numerator with nothing of
-  its own in the denominator, dragging the whole period's blended Discount/ASP away from what the
-  real days alone show (caught live: Tira read 34% instead of the real 38.8% until this was fixed,
-  Oct 2026).
+- **Gross is only ever estimated on days with real MRP.** Every estimate step is MRP x (1 - discount),
+  so a day with no MRP loaded gets no gross either. A channel whose feed stops (e.g. Tira after Sept
+  22) simply ends there; nothing is carried forward. Owner's call, Oct 2026 -- an earlier version
+  synthesised gross for those days from the last real discount and was removed.
 - **Amazon-UAE has no Discount** (`config.NO_DISCOUNT_CHANNELS`, channel table only): its MRP feed
   is still in testing, so MRP isn't trustworthy and its figures are effectively gross only. Shows
   "--"; a note explains why whenever Amazon-UAE is in scope. Same for a channel group made up only

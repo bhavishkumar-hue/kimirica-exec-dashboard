@@ -515,8 +515,8 @@ def block(w: pd.DataFrame, days: int | None = None, ads: pd.DataFrame | None = N
     t = w[w["target_sales"].notna()] if has_t else None
     t_act, t_tgt = (_sum(t, "ach_metric"), _sum(t, "target_sales")) if has_t else (None, None)
     ad = _sum(ads, "ad_spend") if ads is not None else None
-    # Same pairing as _grouped's gross_for_discount / gross_for_asp: a dark-channel day carries an
-    # estimated gross with no MRP or quantity of its own, so it must stay out of these two ratios.
+    # Same pairing as _grouped's gross_for_discount / gross_for_asp: gross on a row with no MRP or
+    # quantity of its own must stay out of these two ratios.
     gross_disc = _sum(w[w["mrp_sales"].notna()], "gross_sales") if len(w) else None
     gross_asp = _sum(w[w["quantity"].notna()], "gross_sales") if len(w) else None
     # ROAS / ad share compare gross only over the dates ad spend actually covers. Spend data starts
@@ -647,12 +647,9 @@ def _grouped(w: pd.DataFrame, key: str) -> pd.DataFrame:
         ach_col = "ach_metric" if "ach_metric" in w else config.TARGET_METRIC
         out["t_act"] = w[w["target_sales"].notna()].groupby(key)[ach_col].sum(min_count=1)
     out["aov_num"] = w[w["aov_den"].notna()].groupby(key)["gross_sales"].sum(min_count=1)
-    # Discount and ASP must only sum gross from rows that also have a real MRP / quantity to divide
-    # by -- a dark-channel day (estimates._fill_dark_channel_days: a real discount carried forward,
-    # MRP left NULL since there's no real order volume for that day) would otherwise add its gross
-    # to the numerator with nothing of its own in the denominator, dragging the whole period's
-    # blended Discount/ASP away from what the real days alone show, in a way that has nothing to do
-    # with how accurate the fill itself is.
+    # Discount and ASP only sum gross from rows that also have a real MRP / quantity to divide by.
+    # Gross on a row without one (e.g. a weekly-table figure on a day MRP hasn't loaded) would land
+    # in the numerator with nothing in the denominator and drag the blended ratio down.
     out["gross_for_discount"] = w.loc[w["mrp_sales"].notna()].groupby(key)["gross_sales"].sum(min_count=1)
     out["gross_for_asp"] = w.loc[w["quantity"].notna()].groupby(key)["gross_sales"].sum(min_count=1)
     return out
