@@ -194,11 +194,15 @@ def _fill_dark_channel_days(df: pd.DataFrame, max_date, lookback: pd.Timedelta) 
 
     This bridges exactly that gap, for each channel whose last loaded day is before the newest
     channel's: synthetic rows for the missing dates, one per category that channel normally
-    reports, each valued at that channel/category's own average daily gross over the lookback
-    window ending on its last loaded day. MRP stays NULL for these rows (it's the authoritative,
-    actuals-only figure -- see the "NULL stays NULL" rule), so growth and the MRP-sorted channel
-    table still show the gap; only gross/net sales (and the KPI cards, monthly trend, etc. that
-    roll up from them) are carried forward so a multi-day outage doesn't read as a sales collapse.
+    reports (anything seen in the lookback window, so a category that didn't happen to sell on the
+    very last day is still covered). The value is that category's own LATEST available discount
+    (1 - gross/mrp) from the most recent single real day it has -- not an average gross over the
+    window, which would blur a recent trend into a flat historic mean -- applied to that same
+    latest day's MRP (so it carries the last real daily figure forward, not a smoothed one). MRP
+    stays NULL for these rows (it's the authoritative, actuals-only figure -- see the "NULL stays
+    NULL" rule), so growth and the MRP-sorted channel table still show the gap; only gross/net
+    sales (and the KPI cards, monthly trend, etc. that roll up from them) are carried forward so a
+    multi-day outage doesn't read as a sales collapse.
     """
     max_ts = pd.Timestamp(max_date)
     new_rows = []
@@ -207,18 +211,19 @@ def _fill_dark_channel_days(df: pd.DataFrame, max_date, lookback: pd.Timedelta) 
         if pd.isna(last) or last >= max_ts:
             continue
         missing = pd.date_range(last + pd.Timedelta(days=1), max_ts, freq="D")
-        hist = g[(g["date"] > last - lookback) & (g["date"] <= last) & g["gross_sales"].notna()]
+        hist = g[(g["date"] > last - lookback) & (g["date"] <= last) & g["gross_sales"].notna()
+                & g["mrp_sales"].notna() & (g["mrp_sales"] > 0)]
         if hist.empty:
             continue
         has_category = hist["category"].notna().any()
         groups = hist.groupby("category") if has_category else [(None, hist)]
         for cat, h in groups:
-            avg = h["gross_sales"].mean()
-            if np.isnan(avg):
-                continue
+            latest = h.loc[h["date"].idxmax()]
+            discount = 1 - latest["gross_sales"] / latest["mrp_sales"]
+            est_gross = latest["mrp_sales"] * (1 - discount)
             for d in missing:
                 new_rows.append({"date": d, "channel": ch, "category": cat,
-                                 "mrp_sales": np.nan, "gross_sales": avg, "est": 1.0})
+                                 "mrp_sales": np.nan, "gross_sales": est_gross, "est": 1.0})
     if not new_rows:
         return df
     return pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)

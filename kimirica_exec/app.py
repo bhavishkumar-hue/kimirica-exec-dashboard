@@ -119,12 +119,6 @@ if data.df.empty:
 
 version = f"{data.source}|{data.max_date}|{data.fetched_at.isoformat()}"
 
-with st.container(key="refresh_fab"):
-    if st.button("Refresh", key="refresh_btn"):
-        clear_caches()
-        st.cache_data.clear()
-        st.rerun()
-
 # --------------------------------------------------------------------------- #
 # Header (filled after filters) and filters
 # --------------------------------------------------------------------------- #
@@ -225,7 +219,13 @@ with st.container(key="filters_caption"):
     T.note(f"{P.period_label}, compared with {P.cmp_period_label}.")
 
 with header_slot.container():
-    T.header()
+    with st.container(key="header_wrap"):
+        T.header()
+        with st.container(key="refresh_fab"):
+            if st.button("Refresh", key="refresh_btn"):
+                clear_caches()
+                st.cache_data.clear()
+                st.rerun()
     if config.SECRETS_ERROR:
         st.error("**`.streamlit/secrets.toml` couldn't be read, so BigQuery isn't connected and these "
                  f"numbers are not real.**\n\n{config.SECRETS_ERROR}\n\nEvery line must be "

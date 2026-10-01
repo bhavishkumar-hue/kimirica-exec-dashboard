@@ -72,12 +72,6 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 .stButton button:hover {{ border-color: {ACCENT}; color: {ACCENT}; }}
 .stButton button:focus-visible {{ outline: 2px solid {ACCENT}; outline-offset: 2px; }}
 
-/* Refresh: pinned to the top-right corner of the viewport, out of the normal document flow so it
-   doesn't push the centred logo or anything below it -- "position: fixed" ignores where its own
-   container actually sits in the page. */
-.st-key-refresh_fab {{ position: fixed; top: 14px; right: 22px; z-index: 999; width: auto; }}
-.st-key-refresh_fab button {{ padding: 4px 14px; font-size: 12.5px; }}
-
 /* panels: containers keyed "panel_*" */
 [class*="st-key-panel"] {{
   background: {SURFACE}; border: 1px solid {LINE}; border-radius: 14px; padding: 22px 24px 18px;
@@ -86,10 +80,20 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 [class*="st-key-panel"] [data-testid="stVerticalBlock"] {{ gap: 0.75rem; }}
 .st-key-filters {{ background: {SURFACE}; border: 1px solid {LINE}; border-radius: 14px; padding: 12px 18px 14px; margin-bottom: 8px; }}
 
-/* header */
+/* header: logo + "Executive Business Performance" subheading, centred. The Refresh button sits to
+   the right of the title, inside this SAME block (st-key-header_wrap wraps both T.header()'s
+   markdown and the button) -- position: absolute against this normally-sized block, not position:
+   fixed against the viewport, so it never adds its own slice of page-level gap above everything
+   else (that was the previous approach's problem: an early, otherwise-invisible sibling container
+   still consumed one "gap" worth of vertical space before the logo even rendered). */
+.st-key-header_wrap {{ position: relative; }}
+.st-key-header_wrap .st-key-refresh_fab {{ position: absolute; top: 8px; right: 0; width: auto; }}
+.st-key-header_wrap .st-key-refresh_fab button {{ padding: 4px 14px; font-size: 12.5px; }}
 .k-head {{ text-align: center; padding: 6px 0 2px; margin-bottom: 8px; }}
 .k-logo {{ color: {INK}; line-height: 0; }}
 .k-logo svg {{ height: clamp(28px, 2.8vw, 38px); width: auto; }}
+.k-sub {{ font-size: 12.5px; color: {MUTED}; letter-spacing: 0.06em; text-transform: uppercase;
+  margin-top: 7px; }}
 
 /* section headings */
 .k-sec {{ margin: 0; }}
@@ -223,8 +227,11 @@ def _logo_svg() -> str:
 
 
 def header() -> None:
-    st.markdown(f'<div class="k-head"><div class="k-logo">{_logo_svg()}</div></div>',
-                unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="k-head"><div class="k-logo">{_logo_svg()}</div>'
+        f'<div class="k-sub">Executive Business Performance</div></div>',
+        unsafe_allow_html=True,
+    )
 
 
 def section(title: str, subtitle: str | None = None) -> None:
