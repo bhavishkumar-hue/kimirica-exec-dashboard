@@ -60,9 +60,13 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   MRP stays NULL for these rows (it's the authoritative, actuals-only figure, per the NULL rule
   above), so growth and the MRP-sorted channel table still show the gap honestly -- only gross, net
   sales and anything rolling up from them (KPI cards, monthly trend) are carried forward so a
-  multi-day outage doesn't read as a sales collapse. Side effect to know about: a channel mid-outage
-  will show an inflated ASP (gross includes the estimate, quantity doesn't) and a skewed Discount
-  (gross includes it, MRP doesn't) for as long as the gap lasts.
+  multi-day outage doesn't read as a sales collapse. Discount and ASP are computed from gross summed
+  only over rows that also have a real MRP / quantity (`metrics._grouped`'s `gross_for_discount` /
+  `gross_for_asp`, fed through `_gross_for_discount` / `_gross_for_asp` for the Total row) rather
+  than plain Gross sales -- otherwise a dark-fill day's gross lands in the numerator with nothing of
+  its own in the denominator, dragging the whole period's blended Discount/ASP away from what the
+  real days alone show (caught live: Tira read 34% instead of the real 38.8% until this was fixed,
+  Oct 2026).
 - **Amazon-UAE has no Discount** (`config.NO_DISCOUNT_CHANNELS`, channel table only): its MRP feed
   is still in testing, so MRP isn't trustworthy and its figures are effectively gross only. Shows
   "--"; a note explains why whenever Amazon-UAE is in scope. Remove once its real MRP is live.
@@ -152,6 +156,17 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
 - Verify channel names match across all five tables; mismatches go in `CHANNEL_ALIASES` in config.py.
 - Unconfirmed: exact text format of `AOP_targets.Month` (parser handles Apr / April / Apr-26 / 2026-04 / 04).
 - Always run `python check_numbers.py` after logic changes and compare with the owner's own SQL.
+- **Myntra has no real gross data anywhere** (found Oct 2026, investigating why its Discount showed
+  a flat 11%): `Executive_Sales_Master.gross_sales` is NULL for every single Myntra row in all of
+  2026 (checked Jan-Sept), and `Executive_Weekly_Gross_Sales` has never had a single Myntra row,
+  checked back to 2024 (that table has only ever held Blinkit/Nykaa/Tira/Zepto, even though
+  `config.WEEKLY_GROSS_CHANNELS` lists Myntra too -- it never actually reports into it). With no real
+  gross anywhere to learn a rate from, `estimates.fill_gross` is correctly falling through to
+  `DEFAULT_DISCOUNT` (11%) for 100% of Myntra's gross, all the time -- this is the dashboard behaving
+  exactly as designed given the data it's been handed, not a dashboard bug. Owner's call (Oct 2026):
+  fix the upstream pipeline/notebook so Myntra's gross actually loads, rather than hardcoding a
+  manual discount in the dashboard (the FK-Minutes/Zepto-style override was offered and declined).
+  Nothing to do here until that's fixed upstream.
 - **Month AOP and year AOP currently come from `aop_plan.py`, not the live `AOP_targets` BigQuery
   table.** The owner's FY26-27 plan splits Amazon into Amazon-SC / Amazon-VC / Amazon-UAE and adds
   Tata Cliq_Others; `AOP_targets` only has one combined "Amazon" row and no Tata Cliq_Others, so it

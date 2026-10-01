@@ -637,6 +637,14 @@ def _grouped(w: pd.DataFrame, key: str) -> pd.DataFrame:
         ach_col = "ach_metric" if "ach_metric" in w else config.TARGET_METRIC
         out["t_act"] = w[w["target_sales"].notna()].groupby(key)[ach_col].sum(min_count=1)
     out["aov_num"] = w[w["aov_den"].notna()].groupby(key)["gross_sales"].sum(min_count=1)
+    # Discount and ASP must only sum gross from rows that also have a real MRP / quantity to divide
+    # by -- a dark-channel day (estimates._fill_dark_channel_days: a real discount carried forward,
+    # MRP left NULL since there's no real order volume for that day) would otherwise add its gross
+    # to the numerator with nothing of its own in the denominator, dragging the whole period's
+    # blended Discount/ASP away from what the real days alone show, in a way that has nothing to do
+    # with how accurate the fill itself is.
+    out["gross_for_discount"] = w.loc[w["mrp_sales"].notna()].groupby(key)["gross_sales"].sum(min_count=1)
+    out["gross_for_asp"] = w.loc[w["quantity"].notna()].groupby(key)["gross_sales"].sum(min_count=1)
     return out
 
 
@@ -648,9 +656,9 @@ def _common_columns(out: pd.DataFrame, mtd: pd.DataFrame, lmtd: pd.DataFrame) ->
     out["MRP sales"] = mtd["mrp_sales"]
     out["Gross sales"] = mtd["gross_sales"]
     out["Net sales"] = mtd["net_sales"]
-    out["Discount"] = 1 - _ratio_col(mtd["gross_sales"], mtd["mrp_sales"])
+    out["Discount"] = 1 - _ratio_col(mtd["gross_for_discount"], mtd["mrp_sales"])
     out["AOV"] = _ratio_col(mtd["aov_num"], mtd["aov_den"])
-    out["ASP"] = _ratio_col(mtd["gross_sales"], mtd["quantity"])
+    out["ASP"] = _ratio_col(mtd["gross_for_asp"], mtd["quantity"])
     out["MoM"] = _vpct(mtd[config.GROWTH_METRIC], lmtd[config.GROWTH_METRIC])
     total = mtd[config.GROWTH_METRIC].sum(min_count=1)
     out["Share"] = mtd[config.GROWTH_METRIC] / total if not is_na(total) and total > 0 else np.nan
@@ -664,6 +672,8 @@ def _common_columns(out: pd.DataFrame, mtd: pd.DataFrame, lmtd: pd.DataFrame) ->
     out["_quantity"] = mtd["quantity"]
     out["_aov_num"] = mtd["aov_num"]
     out["_aov_den"] = mtd["aov_den"]
+    out["_gross_for_discount"] = mtd["gross_for_discount"]
+    out["_gross_for_asp"] = mtd["gross_for_asp"]
 
 
 TOTAL_LABEL = "Total"
@@ -684,12 +694,17 @@ def add_totals_row(out: pd.DataFrame, label_col: str) -> pd.DataFrame:
         return out
     s = lambda col: out[col].sum(min_count=1) if col in out else np.nan  # noqa: E731
     mrp, gross, lmtd = s("MRP sales"), s("Gross sales"), s("LMTD")
+    # Discount/ASP use the same MRP-paired / quantity-paired gross as each row's own column (see
+    # _grouped's gross_for_discount/gross_for_asp) -- plain Gross sales would double-count a dark-
+    # channel day's estimate against the whole Total row, the same distortion row-level Discount/ASP
+    # already guards against.
+    gross_disc, gross_asp = s("_gross_for_discount"), s("_gross_for_asp")
     total = {
         label_col: TOTAL_LABEL,
         "MRP sales": mrp, "Gross sales": gross, "Net sales": s("Net sales"),
-        "Discount": ratio(mrp - gross, mrp) if not (is_na(mrp) or is_na(gross)) else np.nan,
+        "Discount": ratio(mrp - gross_disc, mrp) if not (is_na(mrp) or is_na(gross_disc)) else np.nan,
         "AOV": ratio(s("_aov_num"), s("_aov_den")),
-        "ASP": ratio(gross, s("_quantity")),
+        "ASP": ratio(gross_asp, s("_quantity")),
         "MoM": pct(mrp, lmtd),
         "Share": 1.0 if not is_na(mrp) else np.nan,
         "LMTD": lmtd,
