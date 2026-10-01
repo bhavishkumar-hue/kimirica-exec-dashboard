@@ -184,6 +184,46 @@ def _fill_same_month_gross(df: pd.DataFrame) -> pd.DataFrame:
     return df.drop(columns=["_month"])
 
 
+def _fill_dark_channel_days(df: pd.DataFrame, max_date, lookback: pd.Timedelta) -> pd.DataFrame:
+    """
+    A channel whose feed has stopped entirely (no MRP loaded at all, not just a missing gross
+    figure -- e.g. Tira going quiet for over a week) leaves no rows for those dates, so nothing
+    above can estimate gross for them: every other step needs a real MRP to apply a discount to.
+    Left alone, those days simply don't exist, which silently understates MTD/period totals the
+    same way a hidden zero would, instead of carrying the gap forward honestly.
+
+    This bridges exactly that gap, for each channel whose last loaded day is before the newest
+    channel's: synthetic rows for the missing dates, one per category that channel normally
+    reports, each valued at that channel/category's own average daily gross over the lookback
+    window ending on its last loaded day. MRP stays NULL for these rows (it's the authoritative,
+    actuals-only figure -- see the "NULL stays NULL" rule), so growth and the MRP-sorted channel
+    table still show the gap; only gross/net sales (and the KPI cards, monthly trend, etc. that
+    roll up from them) are carried forward so a multi-day outage doesn't read as a sales collapse.
+    """
+    max_ts = pd.Timestamp(max_date)
+    new_rows = []
+    for ch, g in df.groupby("channel"):
+        last = g.loc[g["mrp_sales"].notna(), "date"].max()
+        if pd.isna(last) or last >= max_ts:
+            continue
+        missing = pd.date_range(last + pd.Timedelta(days=1), max_ts, freq="D")
+        hist = g[(g["date"] > last - lookback) & (g["date"] <= last) & g["gross_sales"].notna()]
+        if hist.empty:
+            continue
+        has_category = hist["category"].notna().any()
+        groups = hist.groupby("category") if has_category else [(None, hist)]
+        for cat, h in groups:
+            avg = h["gross_sales"].mean()
+            if np.isnan(avg):
+                continue
+            for d in missing:
+                new_rows.append({"date": d, "channel": ch, "category": cat,
+                                 "mrp_sales": np.nan, "gross_sales": avg, "est": 1.0})
+    if not new_rows:
+        return df
+    return pd.concat([df, pd.DataFrame(new_rows)], ignore_index=True)
+
+
 def fill_gross(sales: pd.DataFrame, weekly: pd.DataFrame | None,
                lookback_days: int | None = None, max_date=None) -> tuple[pd.DataFrame, EstimateMeta]:
     lookback = pd.Timedelta(days=lookback_days or config.EST_LOOKBACK_DAYS)
@@ -195,6 +235,8 @@ def fill_gross(sales: pd.DataFrame, weekly: pd.DataFrame | None,
     if max_date is not None:
         df = _fill_prior_fy_gross(df, max_date)
     df = _fill_same_month_gross(df)
+    if max_date is not None:
+        df = _fill_dark_channel_days(df, max_date, lookback)
 
     meta: EstimateMeta = {}
     gap = df["gross_sales"].isna() & df["mrp_sales"].notna()
