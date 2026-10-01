@@ -54,7 +54,11 @@ def _build_css() -> str:
 html, body, .stApp, .stApp p, .stApp li, .stApp div, .stApp label, .stApp input, .stApp button,
 .stApp h1, .stApp h2, .stApp h3, .stApp span:not([data-testid="stIconMaterial"]) {{ font-family: {FONT}; }}
 .stApp {{ background: {PAGE}; color: {INK}; }}
-.block-container {{ padding: 2.2rem 2.6rem 4rem; max-width: 1560px; }}
+/* Small top padding: Streamlit's own header bar above this (transparent, not removed -- it holds
+   the sidebar-expand control, confirmed live that control still works even with 0 visible size) adds
+   another ~60px on top of whatever this sets, so keeping this small is what keeps the gap above the
+   logo from looking oversized (owner, Oct 2026). */
+.block-container {{ padding: 0.6rem 2.6rem 4rem; max-width: 1560px; }}
 [data-testid="stToolbar"], [data-testid="stDecoration"], .stAppDeployButton, footer {{ display: none !important; }}
 header[data-testid="stHeader"] {{ background: transparent; }}
 [data-testid="stMainBlockContainer"] > div > [data-testid="stVerticalBlock"] {{ gap: 1.25rem; }}
