@@ -833,27 +833,6 @@ def target_frame(cd: pd.DataFrame, P: Periods, mode: str,
     return g.sort_values("target", ascending=True).reset_index()
 
 
-# Sources worth a note when they run out; gross gaps are handled by the fallback rules.
-COVERAGE_SOURCES = ("Sales", "Ad spends", "AOP achievement")
-
-
-def coverage_notes(spans: dict, start, end) -> list[str]:
-    """Short sentences for sources that don't cover the selected window."""
-    start, end = pd.Timestamp(start), pd.Timestamp(end)
-    out = []
-    for label in COVERAGE_SOURCES:
-        if label not in spans:
-            continue
-        first, last = (pd.Timestamp(d) for d in spans[label])
-        if last < start:
-            out.append(f"No {label.lower()} after {fmt_date(last, True)}.")
-        elif last < end:
-            out.append(f"{label} available to {fmt_date(last, True)}.")
-        elif first > start:
-            out.append(f"{label} start on {fmt_date(first, True)}.")
-    return out
-
-
 # =========================================================================== #
 # Insights & watchlist (all figures computed; no generated prose)
 # =========================================================================== #

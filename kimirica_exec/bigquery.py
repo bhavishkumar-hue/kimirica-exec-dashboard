@@ -38,7 +38,6 @@ class DashboardData:
     website_ebo_orders: pd.DataFrame | None  # date x channel (Website/EBO only), authoritative orders
     channel_last_date: dict[str, dt.date]
     est_meta: dict
-    spans: dict                          # source -> (first date with data, last date with data)
     max_date: dt.date
     min_date: dt.date
     table_modified: dt.datetime | None
@@ -322,23 +321,6 @@ def combine(version: str, _sales: pd.DataFrame, _weekly: pd.DataFrame | None, ma
     return df, meta
 
 
-def _span(df: pd.DataFrame | None, value_col: str):
-    if df is None or df.empty or value_col not in df:
-        return None
-    d = df.loc[df[value_col].notna(), "date"]
-    return (d.min().date(), d.max().date()) if len(d) else None
-
-
-def _spans(sales, weekly, ads, targets) -> dict:
-    return {k: v for k, v in {
-        "Sales": _span(sales, "mrp_sales"),
-        "Gross sales in the sales table": _span(sales, "gross_sales"),
-        "Weekly gross": _span(weekly, "gross_sales"),
-        "Ad spends": _span(ads, "ad_spend"),
-        "AOP achievement": _span(targets, "achieved_sales"),
-    }.items() if v}
-
-
 def _month_end(d: dt.date) -> dt.date:
     return d.replace(day=calendar.monthrange(d.year, d.month)[1])
 
@@ -399,11 +381,10 @@ def load_dashboard_data() -> DashboardData:
 
     version = f"bq|{max_date}|{fetched_at.isoformat()}|{len(weekly) if weekly is not None else 0}"
     df, est_meta = combine(version, sales, weekly, max_date)
-    spans = _spans(sales, weekly, ads, targets)
 
     return DashboardData(
         df=df, ads=ads, targets=targets, aop=aop, website_ebo_orders=website_ebo_orders,
-        channel_last_date=last_dates, est_meta=est_meta, spans=spans,
+        channel_last_date=last_dates, est_meta=est_meta,
         max_date=max_date, min_date=hist_start,
         table_modified=modified.astimezone(IST) if modified else None,
         fetched_at=fetched_at, source="bigquery", notes=notes,
@@ -428,7 +409,6 @@ def _load_demo() -> DashboardData:
     return DashboardData(
         df=df, ads=ads, targets=targets, aop=aop, website_ebo_orders=None,
         channel_last_date=last_dates, est_meta=est_meta,
-        spans=_spans(sales, weekly, ads, targets),
         max_date=max_date, min_date=df["date"].min().date(),
         table_modified=now.replace(hour=7, minute=45, second=0, microsecond=0),
         fetched_at=now, source="demo",

@@ -119,6 +119,12 @@ if data.df.empty:
 
 version = f"{data.source}|{data.max_date}|{data.fetched_at.isoformat()}"
 
+with st.container(key="refresh_fab"):
+    if st.button("Refresh", key="refresh_btn"):
+        clear_caches()
+        st.cache_data.clear()
+        st.rerun()
+
 # --------------------------------------------------------------------------- #
 # Header (filled after filters) and filters
 # --------------------------------------------------------------------------- #
@@ -235,11 +241,10 @@ for n in data.notes:
 # --------------------------------------------------------------------------- #
 T.note(kpi_cards.PRE_CANCEL_NOTE)
 kpi_cards.render_kpis(snap, P, ads_available=ads is not None)
-gaps = M.coverage_notes(data.spans, P.cur_start, P.as_of)
 notes_line = [kpi_cards.AOV_NOTE]
 if "Amazon-UAE" in in_scope:
     notes_line.append(kpi_cards.UAE_DISCOUNT_NOTE)
-T.note(" ".join(notes_line + gaps))
+T.note(" ".join(notes_line))
 kpi_cards.render_pacing(snap_today, PT)
 
 # --------------------------------------------------------------------------- #
@@ -321,17 +326,6 @@ with st.container(key="panel_monthly"):
 with st.container(key="panel_highlights"):
     T.section("Highlights")
     insights.highlights(M.insights(cd_today, PT, snap_today, tbl_today))
-
-# --------------------------------------------------------------------------- #
-# Refresh
-# --------------------------------------------------------------------------- #
-st.write("")
-_, rcol, _ = st.columns([1, 1, 1])
-with rcol:
-    if st.button("Refresh data", use_container_width=True):
-        clear_caches()
-        st.cache_data.clear()
-        st.rerun()
 
 # --------------------------------------------------------------------------- #
 # Sidebar: definitions only

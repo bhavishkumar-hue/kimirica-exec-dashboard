@@ -28,6 +28,9 @@ from components import theme as T
 
 MONEY = ["MRP sales", "Gross sales", "Net sales", "Target", "Ad spend"]
 PRICES = ["AOV", "ASP"]
+ROW_HEIGHT = 30  # explicit row_height= so a long channel list fits without a page-length table
+HEADER_HEIGHT = 36  # the grid's own header overlay height -- fixed regardless of ROW_HEIGHT (measured
+                    # live); see theme.py's clip-window comment for why this exact number matters
 
 
 def _growth_style(v) -> str:
@@ -123,10 +126,10 @@ def _table_with_total(df: pd.DataFrame, sty, total_df: pd.DataFrame, raw: bool,
     # second dataframe sits right against the first with no visible page-section-sized gap.
     total_sty = _styler(total_df, raw, pct_cols, expected).set_properties(**{"font-weight": "700"})
     with st.container(key=f"{key}_wrap", gap="xxsmall"):
-        st.dataframe(sty, hide_index=True, width="stretch", placeholder="—",
+        st.dataframe(sty, hide_index=True, width="stretch", placeholder="—", row_height=ROW_HEIGHT,
                     height=height, column_config=col_config, key=key)
-        st.dataframe(total_sty, hide_index=True, width="stretch", placeholder="—",
-                    height=38 + 35, column_config=col_config, key=f"{key}_total")
+        st.dataframe(total_sty, hide_index=True, width="stretch", placeholder="—", row_height=ROW_HEIGHT,
+                    height=HEADER_HEIGHT + ROW_HEIGHT, column_config=col_config, key=f"{key}_total")
 
 
 def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, cmp_short: str, expected: float = 1.0) -> None:
@@ -145,7 +148,7 @@ def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, cmp_short: str, ex
     # scrollbar in the main grid but never in the one-row Total grid, which eats a few pixels of
     # width from the main grid's columns only and throws off the alignment this whole design
     # exists to guarantee. Exact-fit height means neither grid ever needs to scroll.
-    _table_with_total(df, sty, total_df, raw, pct_cols, expected, 38 + 35 * len(df),
+    _table_with_total(df, sty, total_df, raw, pct_cols, expected, HEADER_HEIGHT + ROW_HEIGHT * len(df),
                       _col_config(df, label, cmp_short, raw), f"tbl_{key_col}_{raw}")
 
 
@@ -157,5 +160,5 @@ def category_table(ct: pd.DataFrame, raw: bool, cmp_short: str) -> None:
     pct_cols = {"Discount": False, "MoM": True, "Share": False}
     sty = _styler(df, raw, pct_cols)
     total_df = M.add_totals_row(ct, "Category")[cols].iloc[[-1]].reset_index(drop=True)
-    _table_with_total(df, sty, total_df, raw, pct_cols, 1.0, 38 + 35 * len(df),
+    _table_with_total(df, sty, total_df, raw, pct_cols, 1.0, HEADER_HEIGHT + ROW_HEIGHT * len(df),
                       _col_config(df, "Category", cmp_short, raw), f"cat_{raw}")

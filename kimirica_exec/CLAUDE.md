@@ -49,6 +49,16 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   **Zepto is temporarily overridden** ahead of all of this: `config.ZEPTO_DISCOUNT_ABS` holds the
   owner's own monthly rupee discount for Apr-Sep 2026; discount% = that ÷ Zepto's own MRP that
   month. Remove once Zepto's weekly/sales-master gross is trustworthy again.
+- **A channel that's gone dark entirely** (no MRP loaded at all for several days, e.g. Tira stopping
+  for over a week -- not just a missing gross figure on top of real MRP) gets a gross estimate too,
+  via `estimates._fill_dark_channel_days`: for each day after the channel's last loaded date, one
+  synthetic row per category valued at that channel/category's own average daily gross over the last
+  28 days. MRP stays NULL for these rows (it's the authoritative, actuals-only figure, per the NULL
+  rule above), so growth and the MRP-sorted channel table still show the gap honestly -- only gross,
+  net sales and anything rolling up from them (KPI cards, monthly trend) are carried forward so a
+  multi-day outage doesn't read as a sales collapse. Side effect to know about: a channel mid-outage
+  will show an inflated ASP (gross includes the estimate, quantity doesn't) and a skewed Discount
+  (gross includes it, MRP doesn't) for as long as the gap lasts.
 - **Amazon-UAE has no Discount** (`config.NO_DISCOUNT_CHANNELS`, channel table only): its MRP feed
   is still in testing, so MRP isn't trustworthy and its figures are effectively gross only. Shows
   "--"; a note explains why whenever Amazon-UAE is in scope. Remove once its real MRP is live.
@@ -79,22 +89,27 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   period (LMTD for a month to date, full previous month for a completed month, previous FY same days,
   or for Custom the same dates one month earlier, or the same dates last year if the range spans more than one month) /
   Custom (owner picks the comparison dates directly) / Last year (same dates a year earlier).
-- A source that ends early (ad spends currently stop in May) must not truncate anything; show a short
-  note under the cards instead ("No ad spends after 31 May 2026").
 - Show a red "these numbers are not real" banner whenever running on demo data or when secrets fail to parse.
-- The channel and category tables (`components/tables.py`) are plain HTML, not `st.dataframe` --
-  its interactive column-header sort has no way to keep one row pinned, which is what a Total row
-  needs. Sorting is instead an explicit "Sort by" control that re-sorts server-side and always
-  re-appends the Total row last. Default sort is MRP sales, descending.
+- The channel and category tables (`components/tables.py`) are each TWO `st.dataframe` calls, not
+  one: `st.dataframe`'s interactive column-header sort has no way to keep one row pinned, which is
+  what a Total row needs, so the Total row is a second, separate `st.dataframe` with identical
+  `column_config` stacked right under the sortable one, its own header hidden via CSS (see the long
+  comment in `components/theme.py`). Both use an explicit `row_height=` (`tables.ROW_HEIGHT`, 30px)
+  and an exact-fit `height=` (no scrollbar cap) so a long channel list stays compact without ever
+  needing to scroll inside the table itself, and so the two grids' columns stay pixel-aligned.
 
 ## Design preferences (owner is strict about these)
 
 - Minimal and clean. **No taglines or subtitles under headings**, no explanatory footnotes, no `*`/`†`
-  markers, no "pp" (use plain % change). The only note allowed under the cards is
-  "AOV is ASP for channels where order data isn't available." plus short data-coverage notes.
+  markers, no "pp" (use plain % change). The only note allowed under the cards is exactly
+  "AOV is ASP for channels where order data isn't available. Amazon-UAE discount isn't shown." --
+  kept deliberately short (owner, Oct 2026); no data-coverage notes are appended to it any more
+  (`metrics.coverage_notes` / `bigquery._spans` were removed along with their only caller).
 - Header is just the Kimirica logo, centred. No status line.
-- A "Refresh data" button sits at the very bottom of the page (after Highlights), clears all caches
-  and reruns. Owner reversed the earlier "no refresh button" rule -- keep it there.
+- "Refresh" is a small button fixed to the top-right corner of the viewport (`st.container(key=
+  "refresh_fab")`, pinned via `position: fixed` in theme.py so it doesn't push the centred logo),
+  not inline in the page flow. Clears all caches and reruns. Owner moved it here from the bottom of
+  the page (Oct 2026).
 - All KPI cards the same size: 3 x 3 grid (MRP, gross, net / discount, quantity, AOV / ASP, ad spends, ROAS).
 - Pacing ("Current month trend" / "Current FY trend"): month and year panels side by side; AOP, achieved,
   projected, pace; figures on the bar. Always describes the latest loaded month/FY to date, regardless of

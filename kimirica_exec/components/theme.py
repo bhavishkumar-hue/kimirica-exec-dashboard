@@ -68,6 +68,12 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 .stButton button:hover {{ border-color: {ACCENT}; color: {ACCENT}; }}
 .stButton button:focus-visible {{ outline: 2px solid {ACCENT}; outline-offset: 2px; }}
 
+/* Refresh: pinned to the top-right corner of the viewport, out of the normal document flow so it
+   doesn't push the centred logo or anything below it -- "position: fixed" ignores where its own
+   container actually sits in the page. */
+.st-key-refresh_fab {{ position: fixed; top: 14px; right: 22px; z-index: 999; width: auto; }}
+.st-key-refresh_fab button {{ padding: 4px 14px; font-size: 12.5px; }}
+
 /* panels: containers keyed "panel_*" */
 [class*="st-key-panel"] {{
   background: {SURFACE}; border: 1px solid {LINE}; border-radius: 14px; padding: 22px 24px 18px;
@@ -161,12 +167,13 @@ header[data-testid="stHeader"] {{ background: transparent; }}
    on the live page and watching which one the header text disappeared from. Hiding that overlay
    removes only the header text; the blank space it leaves is then clipped away by capping the
    wrapping element to one row's height and shifting the dataframe up underneath it by the header
-   canvas's own height. Both pixel numbers (37, 36) came from measuring the live page -- they are
-   unrelated to the 38/35 used for sizing in tables.py, and would need re-measuring if a Streamlit
-   upgrade changes the grid's header/row pixel height. */
+   canvas's own height. 30 is tables.py's own ROW_HEIGHT (the row_height= passed to st.dataframe,
+   so this always matches); 36 is the header canvas's own height, which stays fixed regardless of
+   ROW_HEIGHT -- confirmed by remeasuring after changing ROW_HEIGHT and seeing the header canvas
+   unchanged. Both would need re-measuring if a Streamlit upgrade changes the grid's rendering. */
 [class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type,
 [class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type {{
-  height: 37px !important; overflow: hidden;
+  height: 30px !important; overflow: hidden;
 }}
 /* The inner stDataFrame keeps its own default border/radius (the generic rule above) completely
    untouched -- adding or removing a border here shifts how many pixels the grid renders itself at
