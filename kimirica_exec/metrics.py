@@ -515,17 +515,27 @@ def block(w: pd.DataFrame, days: int | None = None, ads: pd.DataFrame | None = N
     t = w[w["target_sales"].notna()] if has_t else None
     t_act, t_tgt = (_sum(t, "ach_metric"), _sum(t, "target_sales")) if has_t else (None, None)
     ad = _sum(ads, "ad_spend") if ads is not None else None
+    # Same pairing as _grouped's gross_for_discount / gross_for_asp: a dark-channel day carries an
+    # estimated gross with no MRP or quantity of its own, so it must stay out of these two ratios.
+    gross_disc = _sum(w[w["mrp_sales"].notna()], "gross_sales") if len(w) else None
+    gross_asp = _sum(w[w["quantity"].notna()], "gross_sales") if len(w) else None
+    # ROAS / ad share compare gross only over the dates ad spend actually covers. Spend data starts
+    # partway through the FY, so a full-year view divided six months of gross by one month of spend.
+    gross_ad = None
+    if ad is not None and len(w):
+        spent = ads.loc[ads["ad_spend"].notna(), "date"]
+        gross_ad = _sum(w[(w["date"] >= spent.min()) & (w["date"] <= spent.max())], "gross_sales")
     return {
         "gross": gross, "mrp": mrp, "net": net, "qty": qty,
         "orders": _sum(w, "orders") if "orders" in w else None,
-        "discount": (1 - gross / mrp) if gross is not None and mrp else None,
-        "asp": ratio(gross, qty),
+        "discount": (1 - gross_disc / mrp) if gross_disc is not None and mrp else None,
+        "asp": ratio(gross_asp, qty),
         "aov": ratio(_sum(w[w["aov_den"].notna()], "gross_sales"), _sum(w, "aov_den")) if len(w) else None,
         "aov_proxy": bool((w["aov_proxy"] > 0).any()) if len(w) else False,
         "est": bool((w["est"] > 0).any()) if len(w) and "est" in w else False,
         "target": t_tgt, "target_actual": t_act, "ach": ratio(t_act, t_tgt),
         "per_day": ratio(gross, days) if days else None,
-        "ad_spend": ad, "ad_share": ratio(ad, gross), "roas": ratio(gross, ad),
+        "ad_spend": ad, "ad_share": ratio(ad, gross_ad), "roas": ratio(gross_ad, ad),
     }
 
 
@@ -743,10 +753,18 @@ def channel_table(cd: pd.DataFrame, P: Periods, key: str = "channel",
 
     out = pd.DataFrame(index=pd.Index(idx, name=key))
     _common_columns(out, mtd, lmtd)
+    # Amazon-UAE's MRP feed is still in testing and isn't trustworthy -- see
+    # config.NO_DISCOUNT_CHANNELS. Discount is meaningless for it until that's fixed, and equally for
+    # a channel group made up only of such channels ("International" is Amazon-UAE alone).
+    no_disc = set(config.NO_DISCOUNT_CHANNELS)
     if key == "channel":
-        # Amazon-UAE's MRP feed is still in testing and isn't trustworthy -- see
-        # config.NO_DISCOUNT_CHANNELS. Discount is meaningless for it until that's fixed.
-        out.loc[out.index.isin(config.NO_DISCOUNT_CHANNELS), "Discount"] = np.nan
+        hide = out.index.isin(no_disc)
+    else:
+        members: dict[str, set] = {}
+        for ch, g in config.CHANNEL_GROUPS.items():
+            members.setdefault(g, set()).add(ch)
+        hide = [bool(members.get(g)) and members[g] <= no_disc for g in out.index]
+    out.loc[hide, "Discount"] = np.nan
     if plan is not None:
         # AOP for the whole months in the period; achieved to date against it (read with time elapsed)
         achieved = window(cd, P.aop_start, P.as_of).groupby(key)["ach_metric"].sum(min_count=1).reindex(idx)

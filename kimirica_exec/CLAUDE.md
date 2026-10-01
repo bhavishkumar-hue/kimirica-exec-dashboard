@@ -69,7 +69,12 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   Oct 2026).
 - **Amazon-UAE has no Discount** (`config.NO_DISCOUNT_CHANNELS`, channel table only): its MRP feed
   is still in testing, so MRP isn't trustworthy and its figures are effectively gross only. Shows
-  "--"; a note explains why whenever Amazon-UAE is in scope. Remove once its real MRP is live.
+  "--"; a note explains why whenever Amazon-UAE is in scope. Same for a channel group made up only
+  of such channels ("International"). Remove once its real MRP is live.
+- **Ratios pair numerator and denominator.** Discount and ASP (tables via `_grouped`, KPI cards via
+  `block`) only count gross from rows that also have MRP / quantity. ROAS and ad share only count
+  gross over the dates ad spend covers (spend data starts partway through the FY; a full-year view
+  was dividing six months of gross by one month of spend: 29x ROAS).
 - **Net sales** = gross / 1.18.
 - **AOV:** orders where the sales master has them; elsewhere quantity counts as orders, so AOV = ASP.
   Orders data is unreliable; no orders column is shown. **Website and EBO(Stores) never use
@@ -103,8 +108,12 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   what a Total row needs, so the Total row is a second, separate `st.dataframe` with identical
   `column_config` stacked right under the sortable one, its own header hidden via CSS (see the long
   comment in `components/theme.py`). Both use an explicit `row_height=` (`tables.ROW_HEIGHT`, 30px)
-  and an exact-fit `height=` (no scrollbar cap) so a long channel list stays compact without ever
-  needing to scroll inside the table itself, and so the two grids' columns stay pixel-aligned.
+  and an exact-fit `height=` (`_fit_height`, no cap, +2px for the frame border) so neither grid ever
+  scrolls vertically. Column widths come from `_col_widths`: each column gets just enough for its
+  header and widest value (Total included), and `width="stretch"` spreads the spare room. Fixed
+  widths made the channel table scroll sideways on 1280-1366px laptops and with Full values on.
+  Verified no overflow either way, both tables, 1280-1920px, short and Full values (owner: tables
+  must show everything in one view, no scrolling).
 
 ## Design preferences (owner is strict about these)
 
@@ -137,8 +146,11 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
 - Channel performance table has an Ad spend column (money-formatted, hidden if the channel/group has
   no ad spend at all). Owner now enters Myntra/Nykaa/Tira's monthly ad spend directly into
   `Executive_Spends_Master` -- no hardcoded override in config.py (removed Sep 2026).
-- Table growth column header states the actual comparison ("Growth (MRP) vs LMTD" / "... vs LY" /
-  "... vs Comparison period", from `P.cmp_short`), not just "Growth (MRP)".
+- Table growth column header states the actual comparison ("Growth vs LMTD" / "... vs LY" /
+  "... vs Last month", from `P.cmp_short`). The MRP basis is in the column's tooltip; "(MRP)" was
+  dropped from the header itself because it got truncated on laptop widths.
+- Custom compare pre-fills with what "Previous period" would compare against (all of August for
+  September), and its widget is keyed by the selected period so changing the month resets it.
 - **Dark mode**: Streamlit detects the viewer's OS/browser preference itself (`st.context.theme`,
   confirmed via testing -- no config.toml entry, no in-app toggle since the menu is hidden).
   `components/theme.py` holds a light and a dark palette; `_apply_theme()` (called first thing in

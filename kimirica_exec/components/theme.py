@@ -59,6 +59,9 @@ html, body, .stApp, .stApp p, .stApp li, .stApp div, .stApp label, .stApp input,
    another ~60px on top of whatever this sets, so keeping this small is what keeps the gap above the
    logo from looking oversized (owner, Oct 2026). */
 .block-container {{ padding: 0.6rem 2.6rem 4rem; max-width: 1560px; }}
+/* Smaller laptops: give the tables the width instead of the page margins, so the channel table with
+   Full values on still fits without scrolling sideways at 1280px. */
+@media (max-width: 1440px) {{ .block-container {{ padding-left: 1.5rem; padding-right: 1.5rem; }} }}
 [data-testid="stToolbar"], [data-testid="stDecoration"], .stAppDeployButton, footer {{ display: none !important; }}
 header[data-testid="stHeader"] {{ background: transparent; }}
 /* While a rerun is in progress Streamlit tags every element from the previous run data-stale="true"

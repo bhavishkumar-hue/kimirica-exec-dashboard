@@ -41,6 +41,16 @@ def _money_axis(fig: go.Figure, lo: float, hi: float, axis: str = "y", currency:
     (fig.update_yaxes if axis == "y" else fig.update_xaxes)(**upd)
 
 
+def _bar_gap(height: int, n_rows: int, max_px: int = 26, min_gap: float = 0.28) -> float:
+    """
+    Horizontal-bar gap that keeps bars at most max_px thick. The drivers and AOP charts sit side by
+    side at one shared height, so a chart with only a few rows (AOP's Day view, or a one-channel
+    filter) otherwise stretched each bar to fill its slot -- 100px+ slabs.
+    """
+    slot = max(1.0, (height - 80) / max(n_rows, 1))
+    return max(min_gap, 1 - max_px / slot)
+
+
 def _show(fig: go.Figure, key: str) -> None:
     st.plotly_chart(fig, config=PLOT_CONFIG, width="stretch", key=key)
 
@@ -71,7 +81,9 @@ def growth_drivers_chart(tbl: pd.DataFrame, key_col: str, height: int | None = N
         hovertemplate="<b>%{y}</b><br>Change %{customdata[0]}<br>Growth %{customdata[1]}"
                       "<br>Share of total change %{customdata[2]}<extra></extra>",
     ))
-    _base(fig, height or max(260, 30 * len(d) + 40), hovermode="closest", legend=False)
+    h = height or max(260, 30 * len(d) + 40)
+    _base(fig, h, hovermode="closest", legend=False)
+    fig.update_layout(bargap=_bar_gap(h, len(d)))
     lo, hi = float(d["Δ vs LMTD"].min()), float(d["Δ vs LMTD"].max())
     pad = (hi - lo) * 0.18 or 1
     _money_axis(fig, lo - pad, hi + pad, axis="x")
@@ -100,9 +112,11 @@ def target_chart(tf: pd.DataFrame, height: int | None = None, expected: float = 
                  else T.WARN if ach >= config.TARGET_LAG_THRESHOLD * expected else T.NEG)
         fig.add_annotation(x=hi * 1.02, y=r["channel"], text=f"<b>{M.fmt_pct(ach, signed=False)}</b>",
                            showarrow=False, xanchor="left", font=dict(size=12, color=color))
-    _base(fig, height or max(280, 34 * len(tf) + 60), hovermode="y unified")
-    fig.update_layout(barmode="overlay", bargap=0.35)
-    fig.data[1].update(width=0.42)
+    h = height or max(280, 34 * len(tf) + 60)
+    _base(fig, h, hovermode="y unified")
+    gap = _bar_gap(h, len(tf), min_gap=0.35)
+    fig.update_layout(barmode="overlay", bargap=gap)
+    fig.data[1].update(width=0.65 * (1 - gap))  # achieved sits inside the AOP ghost bar
     _money_axis(fig, 0, hi * 1.14, axis="x")
     fig.update_xaxes(showgrid=True, gridcolor=T.GRID)
     fig.update_yaxes(showgrid=False, tickfont=dict(color=T.INK, size=12))

@@ -144,7 +144,11 @@ def _fy_label(f: pd.Timestamp) -> str:
 
 
 with st.container(key="filters"):
-    f1, f2, f3, f4, f5 = st.columns([2.2, 1.5, 2.8, 1.7, 1.4], vertical_alignment="bottom")
+    # A date range ("03/07/2026 – 30/09/2026") needs more room than a month/FY picker; at 1366px the
+    # narrow column cut off the end year. The view's own widget state is already set by this point.
+    widths = ([2.2, 1.9, 2.6, 1.6, 1.4] if st.session_state.get("view_mode") == "Custom"
+              else [2.2, 1.5, 2.8, 1.7, 1.4])
+    f1, f2, f3, f4, f5 = st.columns(widths, vertical_alignment="bottom")
     with f1:
         mode = st.segmented_control("View", list(M.MODES), default="Month", key="view_mode") or "Month"
     with f2:
@@ -178,19 +182,25 @@ with st.container(key="filters"):
     if compare == "Custom":
         # Its own row, not squeezed into f3 -- keeps the main row's columns a uniform height.
         # Spacer widths mirror f1+f2 / f3 / f4+f5 above so this aligns under "Compare with".
-        _, cc, _ = st.columns([2.2 + 1.5, 2.8, 1.7 + 1.4])
+        _, cc, _ = st.columns([widths[0] + widths[1], widths[2], widths[3] + widths[4]])
         with cc:
-            span = (end_ts - start_ts).days + 1
-            cmp_default_end = min(start_ts.date() - dt.timedelta(days=1), data.max_date)
-            cmp_default = st.session_state.get(
-                "cmp_custom_valid",
-                (max(data.min_date, cmp_default_end - dt.timedelta(days=span - 1)), cmp_default_end),
-            )
+            # Pre-fill with whatever "Previous period" compares against (all of August for September,
+            # not the 30 days before it), and key the widget and the remembered pick by the selected
+            # period: Streamlit keeps a keyed widget's value across reruns, so one fixed key left the
+            # last period's comparison dates in place after the month was changed.
+            prev = M.build_periods(start_ts, end_ts, data.channel_last_date, mode=mode, compare="Previous period")
+            period_key = f"{start_ts.date()}_{end_ts.date()}"
+            remembered = f"cmp_custom_valid_{period_key}"
+            cmp_default = st.session_state.get(remembered, (
+                min(max(prev.cmp_start.date(), data.min_date), data.max_date),
+                min(max(prev.cmp_end.date(), data.min_date), data.max_date),
+            ))
             cmp_picked = st.date_input("Compare with dates", value=cmp_default, min_value=data.min_date,
-                                       max_value=data.max_date, format="DD/MM/YYYY", key="cmp_custom_dates")
+                                       max_value=data.max_date, format="DD/MM/YYYY",
+                                       key=f"cmp_custom_dates_{period_key}")
             if isinstance(cmp_picked, (tuple, list)) and len(cmp_picked) == 2:
-                st.session_state["cmp_custom_valid"] = (cmp_picked[0], cmp_picked[1])
-            cmp_start_custom, cmp_end_custom = st.session_state.get("cmp_custom_valid", cmp_default)
+                st.session_state[remembered] = (cmp_picked[0], cmp_picked[1])
+            cmp_start_custom, cmp_end_custom = st.session_state.get(remembered, cmp_default)
 
 scope = sel_channels or channel_options
 P = M.build_periods(start_ts, end_ts, data.channel_last_date, mode=mode, compare=compare,
