@@ -83,6 +83,12 @@ def _from_weekly(df: pd.DataFrame, weekly: pd.DataFrame) -> pd.DataFrame:
     nothing category match would then never fire for those rows, silently losing the whole
     channel's weekly gross (this is what was happening to Myntra, and partly to Nykaa/Tira).
     Running both passes handles a channel that's 100% real category, 100% unmapped, or a mix.
+
+    A weekly category that never appears for that channel in the sales master is a different
+    naming scheme, not a real category match, so it goes to pass 2 too. Swiggy reports its own
+    platform categories ("Bath Body And Hair", "Beauty And Grooming"), so none of its rows
+    matched and all its weekly gross was dropped -- the channel ran on the 11% default instead.
+    A Kimirica category that just doesn't line up on a given day is left to pass 1 as before.
     """
     channels = set(weekly["channel"].dropna())
     part_mask = df["channel"].isin(channels) & df["gross_sales"].isna()
@@ -90,18 +96,22 @@ def _from_weekly(df: pd.DataFrame, weekly: pd.DataFrame) -> pd.DataFrame:
         return df
     df = df.copy()
 
+    known = set(df.loc[df["category"].notna(), ["channel", "category"]].itertuples(index=False, name=None))
+    foreign = weekly["category"].notna() & ~pd.Series(
+        [(c, k) in known for c, k in zip(weekly["channel"], weekly["category"])], index=weekly.index)
+
     # Pass 1: real-category weekly rows match a category row directly.
-    real_w = weekly[weekly["category"].notna()]
+    real_w = weekly[weekly["category"].notna() & ~foreign]
     part = df[part_mask]
     if not real_w.empty and part["category"].notna().any():
-        w_cat = real_w.groupby(["date", "channel", "category"], dropna=False)["gross_sales"].sum(min_count=1)
+        w_cat = real_w.groupby(["date", "channel", "category"])["gross_sales"].sum(min_count=1)
         matched = part.join(w_cat.rename("gross_w"), on=["date", "channel", "category"])["gross_w"].to_numpy()
         df.loc[part_mask, "gross_sales"] = _clamp_gross(matched, part["mrp_sales"].to_numpy())
 
     # Pass 2: whatever the weekly table couldn't attribute to a category is a channel-day total;
     # spread it across that date x channel's rows that are STILL empty after pass 1.
     still_gap = df["channel"].isin(channels) & df["gross_sales"].isna()
-    w_chan = weekly[weekly["category"].isna()].groupby(["date", "channel"])["gross_sales"].sum(min_count=1)
+    w_chan = weekly[weekly["category"].isna() | foreign].groupby(["date", "channel"])["gross_sales"].sum(min_count=1)
     if still_gap.any() and w_chan.notna().any():
         rem = df[still_gap]
         joined = rem.join(w_chan.rename("gross_w"), on=["date", "channel"])

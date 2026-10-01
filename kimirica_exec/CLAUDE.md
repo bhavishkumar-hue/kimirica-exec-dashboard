@@ -43,7 +43,9 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   from everything, including MRP. Owner hasn't confirmed whether MRP should keep them.
 - **Gross fallback:** sales master -> weekly table (real category match, else spread by MRP share --
   "Unmapped" is normalized to no-category at load, so it can't falsely fail to match a real category
-  elsewhere) -> this channel's own current-month discount (from whichever days that month already
+  elsewhere; a weekly category that never appears for that channel in the sales master, like
+  Swiggy's own "Bath Body And Hair" / "Beauty And Grooming", is spread the same way -- before, all of
+  Swiggy's weekly gross was dropped and it ran on the 11% default) -> this channel's own current-month discount (from whichever days that month already
   have real gross) -> MRP x (1 - channel's discount over its last 28 days of actuals, per category)
   -> MRP x (1 - 11%, or CHANNEL_DEFAULT_DISCOUNT) if the channel has no gross history at all.
   **Zepto is temporarily overridden** ahead of all of this: `config.ZEPTO_DISCOUNT_ABS` holds the
