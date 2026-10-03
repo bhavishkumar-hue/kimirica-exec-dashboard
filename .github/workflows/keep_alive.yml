@@ -2,19 +2,36 @@ name: Keep app awake
 
 on:
   schedule:
-    - cron: "0 */10 * * *"   # visits at 00:00, 10:00, 20:00 UTC -- never more than 10h apart
+    # Every 6 hours, off the hour (GitHub delays jobs queued at :00). The app sleeps after ~12h idle,
+    # and scheduled runs often start late, so 10h between visits left no margin.
+    - cron: "17 */6 * * *"
   workflow_dispatch: {}       # lets you also trigger it by hand from the Actions tab
 
 jobs:
-  ping:
+  visit:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - name: Visit the dashboard
-        # --retry: a Streamlit Cloud redeploy (triggered by every push) briefly refuses
-        # connections while it restarts -- without a retry, a ping landing in that window fails
-        # the whole job and emails a false-alarm failure notice instead of just trying again.
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install a headless browser
         run: |
-          curl -sSL --max-time 30 --retry 3 --retry-delay 10 --retry-connrefused \
-            -o /dev/null -w "HTTP %{http_code}\n" \
-            -A "Mozilla/5.0 (keep-alive ping; +https://github.com/${{ github.repository }})" \
-            "https://kimirica-exec-dashboardgit-fryjcdfq4rjxcyvsctdpyq.streamlit.app/"
+          pip install playwright
+          python -m playwright install --with-deps chromium
+
+      # A real browser session, not curl: curl never got past Streamlit Cloud's cookie redirect
+      # (exit 47), and a plain page fetch doesn't count as app activity anyway. Wakes it if asleep.
+      - name: Open the dashboard like a viewer
+        run: python .github/scripts/keep_alive.py "https://kimirica-exec-dashboardgit-fryjcdfq4rjxcyvsctdpyq.streamlit.app/"
+
+      - name: Keep a screenshot if it failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: keep-alive-failure
+          path: keep_alive_failure.png
+          if-no-files-found: ignore
