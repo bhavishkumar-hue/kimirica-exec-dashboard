@@ -2,9 +2,9 @@ name: Keep app awake
 
 on:
   schedule:
-    # Every 6 hours, off the hour (GitHub delays jobs queued at :00). The app sleeps after ~12h idle,
-    # and scheduled runs often start late, so 10h between visits left no margin.
-    - cron: "17 */6 * * *"
+    # Every 3 hours, off the hour (GitHub delays jobs queued at :00). The app sleeps after ~12h idle,
+    # and GitHub starts scheduled runs late or skips them (gaps of ~9h seen on a 6h schedule).
+    - cron: "17 */3 * * *"
   workflow_dispatch: {}       # lets you also trigger it by hand from the Actions tab
 
 jobs:
