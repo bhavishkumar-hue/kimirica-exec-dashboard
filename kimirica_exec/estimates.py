@@ -38,10 +38,11 @@ def _default_discount(channel) -> float:
 
 
 def _clamp_gross(filled: np.ndarray, mrp: np.ndarray) -> np.ndarray:
-    """Gross can never exceed MRP (discount is never negative) or be negative. A weekly-table row
-    that breaks this is bad data, not a real figure -- treat it as not-loaded so the discount-
-    estimate fallback fills it instead of showing an impossible number."""
-    valid = np.isfinite(filled) & (filled >= 0) & (filled <= mrp + 1e-6)
+    """A negative weekly-table figure is bad data -- treat it as not-loaded so the estimate fills it.
+    A day whose weekly gross exceeds that day's master MRP is kept: the two tables book some orders
+    on different days (Swiggy's 3 Sep 2026 is 1.97 L gross vs 1.50 L MRP), the month still
+    reconciles, and dropping the day replaced real gross with an estimate."""
+    valid = np.isfinite(filled) & (filled >= 0)
     return np.where(valid, filled, np.nan)
 
 
