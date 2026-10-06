@@ -12,6 +12,7 @@ Weekly gross is merged and estimated once per data version (estimates.py).
 from __future__ import annotations
 
 import calendar
+import hashlib
 import datetime as dt
 import re
 from dataclasses import dataclass, field
@@ -23,7 +24,12 @@ import streamlit as st
 import config
 import queries
 from aop_plan import hardcoded_aop
+import estimates
 from estimates import fill_gross
+
+# Part of combine()'s cache key: st.cache_data only hashes combine's own code, so a change to the
+# gross rules in estimates.py / config.py kept serving the old cached result after a deploy.
+_LOGIC_HASH = hashlib.sha1(b"".join(open(m.__file__, "rb").read() for m in (estimates, config))).hexdigest()[:10]
 
 IST = ZoneInfo(config.TIMEZONE)
 NUMERIC = ["mrp_sales", "gross_sales", "quantity", "orders", "target_sales"]
@@ -380,7 +386,7 @@ def load_dashboard_data() -> DashboardData:
             notes.append(f"Website/EBO order table could not be read ({exc}); "
                          "using Executive_Sales_Master's own orders instead.")
 
-    version = f"bq|{max_date}|{fetched_at.isoformat()}|{len(weekly) if weekly is not None else 0}"
+    version = f"bq|{_LOGIC_HASH}|{max_date}|{fetched_at.isoformat()}|{len(weekly) if weekly is not None else 0}"
     df, est_meta = combine(version, sales, weekly, max_date)
 
     return DashboardData(
