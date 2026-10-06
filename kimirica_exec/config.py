@@ -148,6 +148,7 @@ W_COL_DATE = _col("W_COL_DATE", "sales_date")
 W_COL_CHANNEL = _col("W_COL_CHANNEL", "channel")
 W_COL_CATEGORY = _col("W_COL_CATEGORY", "category")  # "" if the weekly table is channel-level
 W_COL_GROSS = _col("W_COL_GROSS", "gross_sales")
+W_COL_MRP = _col("W_COL_MRP", "mrp_sales")      # "" if the weekly table has no MRP of its own
 
 # AOP target table (BQ_TARGET_TABLE)
 T_COL_DATE = _col("T_COL_DATE", "sales_date")        # DATE or DATETIME
@@ -207,6 +208,9 @@ ZEPTO_DISCOUNT_ABS: dict[str, float] = {
 }
 
 # Channels refreshed weekly; used only to flag an overdue weekly load.
+# Channels whose gross = sales-master MRP x (1 - that day's discount % in the weekly table), where the
+# discount % is the weekly table's own discount / its own MRP. Its gross figure is never used directly.
+WEEKLY_DISCOUNT_CHANNELS = ["Swiggy"]
 WEEKLY_GROSS_CHANNELS = ["Blinkit", "Zepto", "Swiggy", "FK-Minutes", "Myntra", "Nykaa", "Tira"]
 WEEKLY_OVERDUE_DAYS = 9
 

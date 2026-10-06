@@ -60,7 +60,8 @@ SELECT
   {c.W_COL_DATE}                AS date,
   {c.W_COL_CHANNEL}             AS channel,
   {category}                    AS category,
-  SUM({c.W_COL_GROSS})          AS gross_sales
+  SUM({c.W_COL_GROSS})          AS gross_sales,
+  {_opt(c.W_COL_MRP, "SUM")}    AS mrp_sales
 FROM `{c.fqn(c.BQ_WEEKLY_TABLE)}`
 WHERE {c.W_COL_DATE} BETWEEN @start AND @end
 GROUP BY date, channel, category

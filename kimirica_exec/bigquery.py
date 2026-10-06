@@ -138,7 +138,7 @@ def _prepare_sales(df):
 
 
 def _prepare_weekly(df):
-    return _prep_common(df, ["gross_sales"])
+    return _prep_common(df, ["gross_sales", "mrp_sales"])
 
 
 def _prepare_ads(df):
@@ -256,7 +256,8 @@ def apply_schema() -> list[str]:
                 setattr(config, attr, "")
                 notes.append(f"{table} has no {getattr(config, col_attr)} column; {label} is switched off.")
                 break
-    for col_attr, table_attr in (("W_COL_CATEGORY", "BQ_WEEKLY_TABLE"), ("AD_COL_CHANNEL", "BQ_AD_TABLE"),
+    for col_attr, table_attr in (("W_COL_CATEGORY", "BQ_WEEKLY_TABLE"), ("W_COL_MRP", "BQ_WEEKLY_TABLE"),
+                                 ("AD_COL_CHANNEL", "BQ_AD_TABLE"),
                                  ("T_COL_ACHIEVED", "BQ_TARGET_TABLE")):
         table = getattr(config, table_attr)
         name = getattr(config, col_attr)

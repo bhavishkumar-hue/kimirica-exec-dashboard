@@ -45,6 +45,10 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   real data needs the owner's approval first, and must be listed here.
 - **Freebie categories** (Consumables, Freebie, Primary, Secondary, Uncategorised, any spelling) are dropped at load
   from everything, including MRP. Owner hasn't confirmed whether MRP should keep them.
+- **Swiggy gross (owner's rule):** never taken straight from the weekly table. Each day's discount % =
+  weekly table's gross / weekly table's own `mrp_sales` (whole channel-day), applied to that day's
+  sales-master MRP. Days missing from the weekly table go through the fallback below.
+  (`config.WEEKLY_DISCOUNT_CHANNELS`)
 - **Gross fallback:** sales master -> weekly table (real category match, else spread by MRP share --
   "Unmapped" is normalized to no-category at load, so it can't falsely fail to match a real category
   elsewhere; a weekly category that never appears for that channel in the sales master, like

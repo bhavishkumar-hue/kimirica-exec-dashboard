@@ -5,6 +5,8 @@ MRP sales are daily and authoritative for every channel. Gross sales are taken i
 
   1. Sales master, wherever it has a value.
   2. Weekly gross table (day grain, refreshed weekly), for rows the sales master leaves empty.
+     For WEEKLY_DISCOUNT_CHANNELS (Swiggy) only the table's daily discount % is used, applied to
+     the master's MRP; for the rest its gross is used directly:
      Matched by category where the weekly table has a real one; a channel-level (or "Unmapped")
      weekly figure is spread across that day's category rows by MRP share instead.
   3. This channel's OWN current-month discount (from whichever days this month already have real
@@ -124,6 +126,30 @@ def _from_weekly(df: pd.DataFrame, weekly: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def _from_weekly_discount(df: pd.DataFrame, weekly: pd.DataFrame) -> pd.DataFrame:
+    """
+    For config.WEEKLY_DISCOUNT_CHANNELS (Swiggy), gross = the sales master's MRP x (1 - that day's
+    discount % from the weekly table), where the weekly table's discount % is its own gross / its
+    own MRP for the whole channel-day. The weekly table's gross figure is never used directly: its
+    MRP doesn't always match the master's (1 Oct 2026: 1.07 L weekly vs 2.51 L master), so its
+    gross alone understated the day. Days the weekly table doesn't cover fall through to the
+    normal estimate chain.
+    """
+    chans = [c for c in config.WEEKLY_DISCOUNT_CHANNELS if c in set(weekly["channel"].dropna())]
+    if not chans or "mrp_sales" not in weekly:
+        return df
+    w = weekly[weekly["channel"].isin(chans)].groupby(["date", "channel"])[["gross_sales", "mrp_sales"]].sum(min_count=1)
+    rate = (w["gross_sales"] / w["mrp_sales"].where(w["mrp_sales"] > 0)).rename("rate")
+    rate = rate[(rate >= 0) & np.isfinite(rate)]
+    gap = df["channel"].isin(chans) & df["gross_sales"].isna() & df["mrp_sales"].notna()
+    if not gap.any() or rate.empty:
+        return df
+    df = df.copy()
+    r = df.loc[gap].join(rate, on=["date", "channel"])["rate"]
+    df.loc[gap, "gross_sales"] = df.loc[gap, "mrp_sales"] * r
+    return df
+
+
 def _fill_prior_fy_gross(df: pd.DataFrame, max_date) -> pd.DataFrame:
     """
     Derive gross for last financial year's gaps, channel-wise, so YoY / last-year comparisons have
@@ -202,7 +228,8 @@ def fill_gross(sales: pd.DataFrame, weekly: pd.DataFrame | None,
     df["est"] = 0.0
     df = _fill_zepto_override(df)
     if weekly is not None and not weekly.empty:
-        df = _from_weekly(df, weekly)
+        df = _from_weekly_discount(df, weekly)
+        df = _from_weekly(df, weekly[~weekly["channel"].isin(config.WEEKLY_DISCOUNT_CHANNELS)])
     if max_date is not None:
         df = _fill_prior_fy_gross(df, max_date)
     df = _fill_same_month_gross(df)
