@@ -169,7 +169,18 @@ header[data-testid="stHeader"] {{ background: transparent; }}
    data-testid on the SAME element, no space) with !important so it wins regardless of which rule
    loaded last. */
 [data-testid="stVerticalBlock"][class*="st-key-tbl_"],
-[data-testid="stVerticalBlock"][class*="st-key-cat_"] {{ gap: 4px !important; }}
+[data-testid="stVerticalBlock"][class*="st-key-cat_"] {{ gap: 0 !important; }}
+/* The two grids read as one table: the main grid's bottom corners are squared off and the Total
+   grid sits flush against it, so every column line runs straight through instead of breaking at
+   a rounded edge and a gap. Radius only -- the border itself is untouched (see below). */
+[class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:first-of-type [data-testid="stDataFrame"],
+[class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:first-of-type [data-testid="stDataFrame"],
+[class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:first-of-type [data-testid="stDataFrameResizable"],
+[class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:first-of-type [data-testid="stDataFrameResizable"],
+[class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:first-of-type .stDataFrameGlideDataEditor,
+[class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:first-of-type .stDataFrameGlideDataEditor {{
+  border-bottom-left-radius: 0 !important; border-bottom-right-radius: 0 !important;
+}}
 
 /* The Total row's own header is redundant -- the table above it already labels every column --
    and having two header rows is what made it read as a second, disconnected table. Streamlit's
@@ -187,7 +198,7 @@ header[data-testid="stHeader"] {{ background: transparent; }}
    measured at 100/125/150% display scaling. clip-path hides the same pixels without that. */
 [class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type,
 [class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type {{
-  margin-bottom: -36px;
+  margin-bottom: -37px;
 }}
 /* The inner stDataFrame keeps its own default border/radius (the generic rule above) completely
    untouched -- adding or removing a border here shifts how many pixels the grid renders itself at
@@ -197,7 +208,8 @@ header[data-testid="stHeader"] {{ background: transparent; }}
    bottom of its already-rounded box is what ends up on screen once the top is clipped away above. */
 [class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type [data-testid="stDataFrame"],
 [class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type [data-testid="stDataFrame"] {{
-  margin-top: -36px !important; clip-path: inset(36px 0 0 0);
+  margin-top: -37px !important; clip-path: inset(37px 0 0 0);
+  border-top-left-radius: 0; border-top-right-radius: 0;
 }}
 [class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type canvas:not([data-testid="data-grid-canvas"]),
 [class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:last-of-type canvas:not([data-testid="data-grid-canvas"]) {{
