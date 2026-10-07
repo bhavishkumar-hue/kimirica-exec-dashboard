@@ -148,7 +148,10 @@ with st.container(key="filters"):
     # narrow column cut off the end year. The view's own widget state is already set by this point.
     widths = ([2.2, 1.9, 2.6, 1.6, 1.4] if st.session_state.get("view_mode") == "Custom"
               else [2.2, 1.5, 2.8, 1.7, 1.4])
-    f1, f2, f3, f4, f5 = st.columns(widths, vertical_alignment="bottom")
+    # Channels and Categories share one column so that on a narrow laptop, where the row wraps
+    # (theme.py), they drop to the next line together instead of Categories alone at full width.
+    f1, f2, f3, f45 = st.columns(widths[:3] + [widths[3] + widths[4]], vertical_alignment="bottom")
+    f4, f5 = f45.columns(widths[3:], vertical_alignment="bottom")
     with f1:
         mode = st.segmented_control("Date", list(M.MODES), default="Month", key="view_mode") or "Month"
     with f2:

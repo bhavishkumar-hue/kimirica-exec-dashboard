@@ -22,10 +22,28 @@ def _delta(value, label: str, neutral: bool = False, invert: bool = False) -> st
     return f'<div class="kpi-delta {cls}">{arrow} {esc(M.fmt_pct(value))} <span>{esc(label)}</span></div>'
 
 
-def _card(label: str, value: str, delta_html: str, sub: str, extra_cls: str = "") -> str:
-    return (f'<div class="kpi {extra_cls}"><div class="kpi-label">{esc(label)}</div>'
+def _card(label: str, value: str, delta_html: str, sub: str, extra_cls: str = "",
+          full: tuple[str, str] | None = None) -> str:
+    """full = (exact current value, exact comparison line), shown in a popup while hovering."""
+    tip = ""
+    if full and full[0] != "—":
+        tip = (f'<div class="kpi-tip"><div class="kpi-tip-v">{esc(full[0])}</div>'
+               f'<div class="kpi-tip-s">{esc(full[1])}</div></div>')
+    return (f'<div class="kpi {extra_cls}">{tip}<div class="kpi-label">{esc(label)}</div>'
             f'<div class="kpi-value">{esc(value)}</div>'
             f'{delta_html}<div class="kpi-sub">{esc(sub)}</div></div>')
+
+
+def _full(fmt, cur, prev, ref: str, unit: str = "") -> tuple[str, str]:
+    return fmt(cur) + unit, f"{ref} {fmt(prev)}{unit}"
+
+
+def _pct2(v) -> str:
+    return "—" if M.is_na(v) else f"{float(v) * 100:.2f}%"
+
+
+def _x2(v) -> str:
+    return "—" if M.is_na(v) else f"{float(v):.2f}x"
 
 
 def render_kpis(s: dict, P: M.Periods, ads_available: bool) -> None:
@@ -38,29 +56,33 @@ def render_kpis(s: dict, P: M.Periods, ads_available: bool) -> None:
     if ads_available:
         ad_card = _card("Ad spends", M.fmt_inr(cur["ad_spend"]), _delta(s["ad_mom"], vs, neutral=True),
                         (f"{M.fmt_pct(cur['ad_share'], signed=False)} of gross"
-                         if cur["ad_share"] is not None else f"{ref} {M.fmt_inr(prev['ad_spend'])}"))
+                         if cur["ad_share"] is not None else f"{ref} {M.fmt_inr(prev['ad_spend'])}"),
+                        full=_full(M.fmt_inr_full, cur["ad_spend"], prev["ad_spend"], ref))
         roas_card = _card("ROAS", M.fmt_x(cur["roas"]), _delta(s["roas_mom"], vs),
-                          f"{ref} {M.fmt_x(prev['roas'])}")
+                          f"{ref} {M.fmt_x(prev['roas'])}", full=_full(_x2, cur["roas"], prev["roas"], ref))
     else:
         ad_card = _card("Ad spends", "—", _delta(None, vs), "Not connected")
         roas_card = _card("ROAS", "—", _delta(None, vs), "Not connected")
 
     cards = [
         _card("MRP sales", M.fmt_inr(cur["mrp"]), _delta(s["mrp_mom"], vs),
-              f"{ref} {M.fmt_inr(prev['mrp'])}", extra_cls="kpi-lead"),
+              f"{ref} {M.fmt_inr(prev['mrp'])}", extra_cls="kpi-lead",
+              full=_full(M.fmt_inr_full, cur["mrp"], prev["mrp"], ref)),
         _card("Gross sales", M.fmt_inr(cur["gross"]), _delta(s["gross_mom"], vs),
-              f"{ref} {M.fmt_inr(prev['gross'])}"),
+              f"{ref} {M.fmt_inr(prev['gross'])}", full=_full(M.fmt_inr_full, cur["gross"], prev["gross"], ref)),
         _card(f"Net sales (ex {gst} GST)", M.fmt_inr(cur["net"]), _delta(s["net_mom"], vs),
-              f"{ref} {M.fmt_inr(prev['net'])}"),
+              f"{ref} {M.fmt_inr(prev['net'])}", full=_full(M.fmt_inr_full, cur["net"], prev["net"], ref)),
         _card("Discount", M.fmt_pct(cur["discount"], signed=False),
               _delta(M.pct(cur["discount"], prev["discount"]), vs, invert=True),
-              f"{ref} {M.fmt_pct(prev['discount'], signed=False)}"),
+              f"{ref} {M.fmt_pct(prev['discount'], signed=False)}",
+              full=_full(_pct2, cur["discount"], prev["discount"], ref)),
         _card("Quantity", M.fmt_count(cur["qty"]), _delta(s["qty_mom"], vs),
-              f"{ref} {M.fmt_count(prev['qty'])} units"),
+              f"{ref} {M.fmt_count(prev['qty'])} units",
+              full=_full(M.fmt_count_full, cur["qty"], prev["qty"], ref, " units")),
         _card("AOV", M.fmt_price(cur["aov"]), _delta(s["aov_mom"], vs),
-              f"{ref} {M.fmt_price(prev['aov'])}"),
+              f"{ref} {M.fmt_price(prev['aov'])}", full=_full(M.fmt_inr_full, cur["aov"], prev["aov"], ref)),
         _card("ASP", M.fmt_price(cur["asp"]), _delta(s["asp_mom"], vs),
-              f"{ref} {M.fmt_price(prev['asp'])}"),
+              f"{ref} {M.fmt_price(prev['asp'])}", full=_full(M.fmt_inr_full, cur["asp"], prev["asp"], ref)),
         ad_card,
         roas_card,
     ]

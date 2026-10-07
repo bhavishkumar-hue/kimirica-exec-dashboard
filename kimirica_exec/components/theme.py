@@ -89,7 +89,17 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 /* One heading style for every filter, and segmented controls as tall as the dropdowns so all the
    headings sit on one line (the shorter controls left "Date" / "Compare with" 8px lower). */
 .st-key-filters [data-testid="stWidgetLabel"] p {{ font-size: 12.5px; font-weight: 600; color: {INK}; }}
-.st-key-filters [data-testid="stButtonGroup"] button {{ min-height: 40px; }}
+.st-key-filters [data-testid="stButtonGroup"] button {{ min-height: 40px; white-space: nowrap; }}
+/* On narrower laptops the five filters don't fit one row: the button groups ran past their columns
+   and got cut off under the next filter. Each column now keeps the width its content needs, and the
+   row wraps onto a second line instead of squeezing. */
+.st-key-filters [data-testid="stHorizontalBlock"] {{ flex-wrap: wrap; row-gap: 12px; }}
+.st-key-filters [data-testid="stColumn"]:has([data-testid="stButtonGroup"]) {{ min-width: max-content !important; }}
+.st-key-filters [data-testid="stColumn"]:has([data-testid="stDateInput"]) {{ min-width: 250px !important; }}
+.st-key-filters [data-testid="stColumn"]:has([data-testid="stSelectbox"]) {{ min-width: 190px !important; }}
+.st-key-filters [data-testid="stColumn"]:has([data-testid="stMultiSelect"]) {{ min-width: 340px !important; }}
+.st-key-filters [data-testid="stColumn"] [data-testid="stColumn"]:has([data-testid="stMultiSelect"]) {{ min-width: 0 !important; }}
+.st-key-filters [data-testid="stColumn"] [data-testid="stHorizontalBlock"] {{ flex-wrap: nowrap; }}
 
 /* header: logo + "Executive Business Performance" subheading, centred. */
 .k-head {{ text-align: center; padding: 6px 0 2px; margin-bottom: 8px; }}
@@ -107,7 +117,18 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 .kpi-grid {{ display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 4px; }}
 @media (max-width: 1100px) {{ .kpi-grid {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }} }}
 .kpi-lead {{ box-shadow: inset 3px 0 0 {ACCENT}; }}
-.kpi {{ background: {SURFACE}; border: 1px solid {LINE}; border-radius: 14px; padding: 16px clamp(12px, 1.2vw, 18px) 14px; min-width: 0; }}
+.kpi {{ background: {SURFACE}; border: 1px solid {LINE}; border-radius: 14px; padding: 16px clamp(12px, 1.2vw, 18px) 14px; min-width: 0; position: relative; }}
+/* Exact figures on hover: a small popup above the card that fades in and is gone when the cursor leaves. */
+.kpi-tip {{ position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translate(-50%, 4px); z-index: 20;
+  background: {INK}; color: {SURFACE}; border-radius: 8px; padding: 7px 12px; white-space: nowrap; text-align: center;
+  box-shadow: 0 6px 18px rgba(0,0,0,.18); opacity: 0; visibility: hidden; pointer-events: none;
+  transition: opacity .12s ease, transform .12s ease, visibility 0s linear .12s; }}
+.kpi-tip::after {{ content: ""; position: absolute; top: 100%; left: 50%; margin-left: -5px;
+  border: 5px solid transparent; border-top-color: {INK}; }}
+.kpi:hover .kpi-tip {{ opacity: 1; visibility: visible; transform: translate(-50%, 0);
+  transition: opacity .12s ease, transform .12s ease, visibility 0s; }}
+.kpi-tip-v {{ font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }}
+.kpi-tip-s {{ font-size: 11.5px; opacity: .75; margin-top: 1px; font-variant-numeric: tabular-nums; }}
 .kpi-label {{ font-size: 13px; font-weight: 500; color: {MUTED}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
 .kpi-label sup {{ font-size: 12px; color: {WARN}; margin-left: 1px; vertical-align: baseline; position: relative; top: -0.35em; line-height: 0; }}
 .kpi-value {{ font-size: clamp(22px, 2vw, 31px); font-weight: 600; letter-spacing: -0.025em; color: {INK};
