@@ -179,6 +179,16 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 
 /* tables */
 [data-testid="stDataFrame"] {{ border: 1px solid {LINE}; border-radius: 10px; overflow: hidden; }}
+/* Columns are frozen: dragging a header edge resized only the table above, never its Total row, so
+   the column lines fell out of line. st.dataframe has no switch for that, so a transparent cover
+   over the header row takes the pointer instead (this also stops header-click sorting and column
+   drag-reordering). The Total grid's header is already clipped away, so it needs nothing. */
+[class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:first-of-type [data-testid="stDataFrame"],
+[class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:first-of-type [data-testid="stDataFrame"] {{ position: relative; }}
+[class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:first-of-type [data-testid="stDataFrame"]::after,
+[class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:first-of-type [data-testid="stDataFrame"]::after {{
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 36px; z-index: 5; cursor: default;
+}}
 /* The Total row is a second st.dataframe stacked right under the sortable one, using the exact
    same column_config -- see the long comment in components/tables.py for why (short version:
    st.dataframe's column-sort can't exclude a single row, and its canvas-rendered grid has no
