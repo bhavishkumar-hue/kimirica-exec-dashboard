@@ -152,8 +152,11 @@ def _table_with_total(df: pd.DataFrame, sty, total_df: pd.DataFrame, raw: bool,
     with st.container(key=f"{key}_wrap", gap="xxsmall"):
         st.dataframe(sty, hide_index=True, width="stretch", placeholder="—", row_height=ROW_HEIGHT,
                     height=height, column_config=col_config, key=key)
+        # Same height rule as the main grid. Without the +2 border allowance the grid's content
+        # overflowed by 2px, Streamlit treated it as scrolling and widened it by a scrollbar's width
+        # (~10px where the browser shows real scrollbars), so every Total line drifted right.
         st.dataframe(total_sty, hide_index=True, width="stretch", placeholder="—", row_height=ROW_HEIGHT,
-                    height=HEADER_HEIGHT + ROW_HEIGHT, column_config=col_config, key=f"{key}_total")
+                    height=_fit_height(1), column_config=col_config, key=f"{key}_total")
 
 
 def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, cmp_short: str, expected: float = 1.0) -> None:
