@@ -179,16 +179,10 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 
 /* tables */
 [data-testid="stDataFrame"] {{ border: 1px solid {LINE}; border-radius: 10px; overflow: hidden; }}
-/* Columns are frozen: dragging a header edge resized only the table above, never its Total row, so
-   the column lines fell out of line. st.dataframe has no switch for that, so a transparent cover
-   over the header row takes the pointer instead (this also stops header-click sorting and column
-   drag-reordering). The Total grid's header is already clipped away, so it needs nothing. */
-[class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:first-of-type [data-testid="stDataFrame"],
-[class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:first-of-type [data-testid="stDataFrame"] {{ position: relative; }}
-[class*="st-key-tbl_"][class*="_wrap"] [data-testid="stElementContainer"]:first-of-type [data-testid="stDataFrame"]::after,
-[class*="st-key-cat_"][class*="_wrap"] [data-testid="stElementContainer"]:first-of-type [data-testid="stDataFrame"]::after {{
-  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 36px; z-index: 5; cursor: default;
-}}
+/* Column edges can't be dragged (see _FREEZE_JS); keep the resize cursor from suggesting otherwise. */
+[class*="st-key-tbl_"][class*="_wrap"] .dvn-scroller[style*="col-resize"],
+[class*="st-key-cat_"][class*="_wrap"] .dvn-scroller[style*="col-resize"] {{ cursor: pointer !important; }}
+.st-key-k_colfreeze {{ display: none; }}
 /* The Total row is a second st.dataframe stacked right under the sortable one, using the exact
    same column_config -- see the long comment in components/tables.py for why (short version:
    st.dataframe's column-sort can't exclude a single row, and its canvas-rendered grid has no
@@ -255,9 +249,44 @@ header[data-testid="stHeader"] {{ background: transparent; }}
 """
 
 
+# Column lines are frozen: a header-edge drag resized (or a header drag reordered) only the table
+# above, never its separate Total grid, so their lines fell out of line. st.dataframe has no switch
+# for either, so once a press lands in a table's header row, pointer movement is swallowed until
+# release. Resizing and reordering both need movement; a plain click doesn't, so sorting still works.
+_FREEZE_JS = """
+<script>
+(() => {
+  if (window.__kColFreeze) return;
+  window.__kColFreeze = true;
+  const SEL = '[class*="st-key-tbl_"][class*="_wrap"] [data-testid="stDataFrame"],' +
+              '[class*="st-key-cat_"][class*="_wrap"] [data-testid="stDataFrame"]';
+  const HEADER_PX = 36;
+  let armed = false;
+  const down = (e) => {
+    const df = e.target instanceof Element ? e.target.closest(SEL) : null;
+    armed = !!df && (e.clientY - df.getBoundingClientRect().top) <= HEADER_PX;
+  };
+  const move = (e) => { if (armed) { e.stopImmediatePropagation(); e.preventDefault(); } };
+  const up = () => { armed = false; };
+  for (const t of ["pointerdown", "mousedown", "touchstart"]) window.addEventListener(t, down, true);
+  for (const t of ["pointermove", "mousemove", "touchmove", "dragstart"]) window.addEventListener(t, move, {capture: true, passive: false});
+  for (const t of ["pointerup", "mouseup", "touchend", "pointercancel"]) window.addEventListener(t, up, true);
+  // The header's column menu can also change widths: drop its Autosize / Pin / Hide items, keep sorting.
+  const BLOCKED = /(^|\\n)(Autosize|Pin column|Unpin column|Hide column)$/;
+  new MutationObserver(() => {
+    for (const item of document.querySelectorAll('[data-testid="stDataFrameColumnMenu"] [role="menuitem"]'))
+      if (BLOCKED.test(item.innerText.trim())) item.style.display = "none";
+  }).observe(document.body, {childList: true, subtree: true});
+})();
+</script>
+"""
+
+
 def inject_css() -> None:
     _apply_theme()
     st.markdown(_build_css(), unsafe_allow_html=True)
+    with st.container(key="k_colfreeze"):
+        st.html(_FREEZE_JS, unsafe_allow_javascript=True)
 
 
 def esc(text) -> str:
