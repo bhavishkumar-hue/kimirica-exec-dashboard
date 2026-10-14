@@ -319,8 +319,18 @@ if data.products is not None and not data.products.empty:
         if pt.empty:
             empty("No product sales for this selection.")
         else:
-            tables.product_table(pt, raw_prod, P.cmp_short)
-            export_button(c_dl, tables.product_csv(pt, P.cmp_short), "products", "dl_products")
+            search_col, _ = st.columns([2, 3])
+            with search_col:
+                term = st.text_input("Search products", key="prod_search", placeholder="Search products",
+                                     label_visibility="collapsed", icon=":material/search:").strip()
+            # Name or Kimirica code, any case; the Total row and CSV then cover the matches only.
+            shown = pt[pt["Product"].str.contains(term, case=False, regex=False)
+                       | pt["code"].astype(str).str.contains(term, case=False, regex=False)] if term else pt
+            if shown.empty:
+                empty(f"No products match “{term}”.")
+            else:
+                tables.product_table(shown, raw_prod, P.cmp_short)
+                export_button(c_dl, tables.product_csv(shown, P.cmp_short), "products", "dl_products")
 
 # --------------------------------------------------------------------------- #
 # 4. Growth drivers and target vs actual

@@ -749,7 +749,8 @@ def add_totals_row(out: pd.DataFrame, label_col: str) -> pd.DataFrame:
         "AOV": ratio(s("_aov_num"), s("_aov_den")),
         "ASP": ratio(gross_asp, s("_quantity")),
         "MoM": pct(mrp, lmtd),
-        "Share": 1.0 if not is_na(mrp) else np.nan,
+        # Sum of the rows' shares: 100% for a full table, the matches' share for a searched product table.
+        "Share": s("Share"),
         "LMTD": lmtd,
         "Δ vs LMTD": None if is_na(mrp) or is_na(lmtd) else mrp - lmtd,
         "Orders": s("Orders"), "LMTD orders": s("LMTD orders"),
