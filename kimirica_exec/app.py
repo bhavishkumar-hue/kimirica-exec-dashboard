@@ -125,8 +125,14 @@ if st.query_params.get("refresh"):
     del st.query_params["refresh"]
 
 try:
-    with st.spinner("Loading sales data"):
+    # The spinner only on a session's first load (and after Refresh): on a filter change the data is
+    # already cached, and a spinner flashing in at the top pushed the whole page down for a moment.
+    if st.session_state.get("data_loaded"):
         data = load_dashboard_data()
+    else:
+        with st.spinner("Loading sales data"):
+            data = load_dashboard_data()
+        st.session_state["data_loaded"] = True
 except Exception as exc:  # actionable message instead of a stack trace
     st.error(
         "Sales data could not be loaded from BigQuery.\n\n"
@@ -143,9 +149,19 @@ if data.df.empty:
 version = f"{data.source}|{data.max_date}|{data.fetched_at.isoformat()}"
 
 # --------------------------------------------------------------------------- #
-# Header (filled after filters) and filters
+# Header and filters
 # --------------------------------------------------------------------------- #
-header_slot = st.empty()
+# Drawn directly, not into an st.empty() filled after the filters: on every rerun that placeholder
+# was emptied first, so the whole page jumped up by the header's height (81px, measured) until the
+# filters had run and it was refilled -- the "page moves when a filter is picked" glitch.
+T.header()
+if config.SECRETS_ERROR:
+    st.error("**`.streamlit/secrets.toml` couldn't be read, so BigQuery isn't connected and these "
+             f"numbers are not real.**\n\n{config.SECRETS_ERROR}\n\nEvery line must be "
+             '`key = "value"` (TOML), not `key: "value",` (JSON).', icon="🚨")
+elif data.source == "demo":
+    st.error("**These numbers are not real.** BigQuery isn't connected, so the dashboard is "
+             "showing synthetic demo data. Check `.streamlit/secrets.toml`.", icon="🚨")
 
 channel_options = [c for c in config.CHANNELS if c in set(data.df["channel"])]
 channel_options += sorted(set(data.df["channel"]) - set(channel_options))
@@ -269,15 +285,6 @@ in_scope = sorted(set(cd["channel"]))
 with st.container(key="filters_caption"):
     T.note(f"{P.period_label}, compared with {P.cmp_period_label}.")
 
-with header_slot.container():
-    T.header()
-    if config.SECRETS_ERROR:
-        st.error("**`.streamlit/secrets.toml` couldn't be read, so BigQuery isn't connected and these "
-                 f"numbers are not real.**\n\n{config.SECRETS_ERROR}\n\nEvery line must be "
-                 '`key = "value"` (TOML), not `key: "value",` (JSON).', icon="🚨")
-    elif data.source == "demo":
-        st.error("**These numbers are not real.** BigQuery isn't connected, so the dashboard is "
-                 "showing synthetic demo data. Check `.streamlit/secrets.toml`.", icon="🚨")
 for n in data.notes:
     st.warning(n)
 
@@ -306,7 +313,8 @@ with st.container(key="panel_channels"):
             view = seg(["Channels", "Channel groups"], "Channels", "tbl_view")
         with c2:
             raw = st.toggle("Full values", key="raw_values")
-        dl_channels = c3.empty()
+        dl_channels = c3  # the column itself, not st.empty(): an empty() slot is cleared at the start of
+                          # every rerun, so the header row lost the button and shrank 8px for a moment
     key_col = "channel" if view == "Channels" else "group"
     view_tbl = tbl if key_col == "channel" else M.channel_table(cd, P, "group", aop, scope_channels, ads)
     if view_tbl.empty:
@@ -343,18 +351,19 @@ if data.products is not None and not data.products.empty:
     pf = M.add_lag(pf[pf["code"].isin(codes)] if by_product else pf, P)
     pt = M.product_table(pf, P)
     with st.container(key="panel_product"):
-        ctrl = panel_header("Product performance")
+        # Search sits in the header row with the other controls, so the table keeps the same gap
+        # under its title as the channel and category tables.
+        ctrl = panel_header("Product performance", ratio=(2, 3))
         with ctrl:
-            c_raw, c_dl = st.columns([1, 0.55], vertical_alignment="center")
+            c_search, c_raw, c_dl = st.columns([2.2, 1, 0.55], vertical_alignment="center")
+            with c_search:
+                term = st.text_input("Search products", key="prod_search", placeholder="Search products",
+                                     label_visibility="collapsed", icon=":material/search:").strip()
             with c_raw:
                 raw_prod = st.toggle("Full values", key="raw_prod")
         if pt.empty:
             empty("No product sales for this selection.")
         else:
-            search_col, _ = st.columns([2, 3])
-            with search_col:
-                term = st.text_input("Search products", key="prod_search", placeholder="Search products",
-                                     label_visibility="collapsed", icon=":material/search:").strip()
             # Name or Kimirica code, any case; the Total row and CSV then cover the matches only.
             shown = pt[pt["Product"].str.contains(term, case=False, regex=False)
                        | pt["code"].astype(str).str.contains(term, case=False, regex=False)] if term else pt
