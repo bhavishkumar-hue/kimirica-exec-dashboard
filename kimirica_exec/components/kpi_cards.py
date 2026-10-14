@@ -46,7 +46,7 @@ def _x2(v) -> str:
     return "—" if M.is_na(v) else f"{float(v):.2f}x"
 
 
-def render_kpis(s: dict, P: M.Periods, ads_available: bool) -> None:
+def render_kpis(s: dict, P: M.Periods, ads_available: bool, ads_note: str = "Not connected") -> None:
     """Eight equal cards for the selected period, each against the chosen comparison."""
     cur, prev = s["cur"], s["prev"]
     vs = P.cmp_label
@@ -61,8 +61,8 @@ def render_kpis(s: dict, P: M.Periods, ads_available: bool) -> None:
         roas_card = _card("ROAS", M.fmt_x(cur["roas"]), _delta(s["roas_mom"], vs),
                           f"{ref} {M.fmt_x(prev['roas'])}", full=_full(_x2, cur["roas"], prev["roas"], ref))
     else:
-        ad_card = _card("Ad spends", "—", _delta(None, vs), "Not connected")
-        roas_card = _card("ROAS", "—", _delta(None, vs), "Not connected")
+        ad_card = _card("Ad spends", "—", _delta(None, vs), ads_note)
+        roas_card = _card("ROAS", "—", _delta(None, vs), ads_note)
 
     cards = [
         _card("MRP sales", M.fmt_inr(cur["mrp"]), _delta(s["mrp_mom"], vs),

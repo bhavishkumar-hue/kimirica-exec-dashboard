@@ -110,6 +110,10 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   discount. Zepto (`MONTH_DISCOUNT_PRODUCT_CHANNELS`) gets the channel's month discount on every
   product. All products, scrolling inside a 15-row box (`PRODUCT_VISIBLE_ROWS`); growth shows "New"
   when the comparison period's MRP is missing or under 1% of this period's (`NEW_PRODUCT_SHARE`).
+- **Products filter (top bar, searchable multi-select):** picking products runs the whole page on
+  those products' rows (`products.as_sales_frame`, same date x channel x category grain): cards,
+  channel / category / product tables, drivers, monthly trend, highlights. AOP (pacing, AOP columns,
+  AOP chart) and ad spends / ROAS are hidden then -- they aren't split by product; AOV = ASP.
 - **Export:** channel, category and product tables each have a CSV button (whole table + Total,
   plain numbers, percentages as numbers, "New" kept).
 - **Amazon-VC** lags ~1 day; its latest date is detected at runtime and its current and comparison windows

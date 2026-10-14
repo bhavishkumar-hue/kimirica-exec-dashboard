@@ -19,6 +19,7 @@ st.set_page_config(
 
 import config  # noqa: E402
 import metrics as M  # noqa: E402
+import products as PR  # noqa: E402
 from bigquery import clear_caches, load_dashboard_data  # noqa: E402
 from components import charts, insights, kpi_cards, tables  # noqa: E402
 from components import theme as T  # noqa: E402
@@ -73,6 +74,17 @@ def seg(options: list[str], default: str, key: str) -> str:
 @st.cache_data(show_spinner=False, max_entries=32)
 def cached_category(version: str, channels: tuple, categories: tuple, _df: pd.DataFrame) -> pd.DataFrame:
     return M.prepare_category_frame(M.filter_frame(_df, list(channels), list(categories)))
+
+
+@st.cache_data(show_spinner=False, max_entries=8)
+def cached_product_labels(version: str, _pf: pd.DataFrame) -> dict:
+    return PR.product_labels(_pf)
+
+
+@st.cache_data(show_spinner=False, max_entries=16)
+def cached_product_sales(version: str, codes: tuple, _pf: pd.DataFrame) -> pd.DataFrame:
+    """The page's data for just the products picked in the top filter (see products.as_sales_frame)."""
+    return PR.as_sales_frame(_pf[_pf["code"].isin(codes)])
 
 
 @st.cache_data(show_spinner=False, max_entries=32)
@@ -192,6 +204,15 @@ with st.container(key="filters"):
         else:
             sel_categories = []
 
+    # Products: type to search, pick one or more; the whole page then runs on just those products.
+    sel_products = []
+    if data.products is not None and not data.products.empty:
+        product_names = cached_product_labels(version, data.products)
+        pc, _ = st.columns([3, 2])
+        with pc:
+            sel_products = st.multiselect("Products", list(product_names), format_func=product_names.get,
+                                          placeholder="All products · type to search", key="products")
+
     cmp_start_custom = cmp_end_custom = None
     if compare == "Custom":
         # Its own row, not squeezed into f3 -- keeps the main row's columns a uniform height.
@@ -217,21 +238,28 @@ with st.container(key="filters"):
             cmp_start_custom, cmp_end_custom = st.session_state.get(remembered, cmp_default)
 
 scope = sel_channels or channel_options
+# Products picked at the top: every section below runs on just those products' rows. AOP, ad spends
+# and orders aren't split by product, so they drop out while products are selected.
+by_product = bool(sel_products)
+codes = tuple(sorted(sel_products))
+vkey = version + (f"|p:{','.join(codes)}" if by_product else "")
+base_df = cached_product_sales(version, codes, data.products) if by_product else data.df
 P = M.build_periods(start_ts, end_ts, data.channel_last_date, mode=mode, compare=compare,
                     cmp_start=cmp_start_custom, cmp_end=cmp_end_custom)
 cd_raw = M.attach_targets(
-    cached_channel_daily(version, tuple(sel_channels), tuple(sel_categories), data.df, data.website_ebo_orders),
-    data.targets, sel_channels, sel_categories,
+    cached_channel_daily(vkey, tuple(sel_channels), tuple(sel_categories), base_df,
+                         None if by_product else data.website_ebo_orders),
+    None if by_product else data.targets, sel_channels, sel_categories,
 )
 cd = M.add_lag(cd_raw, P)
 # Pacing, highlights and needs attention always describe the current month to date, whatever dates are picked
 PT = M.build_periods(last_day.replace(day=1), last_day, data.channel_last_date)
 cd_today = M.add_lag(cd_raw, PT)
 ads, _ = M.prepare_ads(data.ads, sel_channels)
-if sel_categories:
-    ads = None  # ad spends aren't split by category
+if sel_categories or by_product:
+    ads = None  # ad spends aren't split by category or product
 scope_channels = sel_channels  # empty = every channel, including any only present in the AOP tables
-aop = None if sel_categories else data.aop  # the AOP plan isn't split by category
+aop = None if (sel_categories or by_product) else data.aop  # the AOP plan isn't split by category or product
 snap = M.kpi_snapshot(cd, ads, P, aop, scope_channels)
 tbl = M.channel_table(cd, P, "channel", aop, scope_channels, ads)
 snap_today = M.kpi_snapshot(cd_today, ads, PT, aop, scope_channels)
@@ -257,8 +285,11 @@ for n in data.notes:
 # 1. Headline KPIs and pacing
 # --------------------------------------------------------------------------- #
 T.note(kpi_cards.PRE_CANCEL_NOTE)
-kpi_cards.render_kpis(snap, P, ads_available=ads is not None)
+kpi_cards.render_kpis(snap, P, ads_available=ads is not None,
+                      ads_note="Not split by product" if by_product else "Not connected")
 notes_line = [kpi_cards.AOV_NOTE]
+if by_product:
+    notes_line.append("AOP and ad spends aren't split by product, so they're hidden while products are selected.")
 if "Amazon-UAE" in in_scope:
     notes_line.append(kpi_cards.UAE_DISCOUNT_NOTE)
 T.note(" ".join(notes_line))
@@ -289,7 +320,7 @@ with st.container(key="panel_channels"):
 # 3. Category performance
 # --------------------------------------------------------------------------- #
 if data.has_category:
-    fdf = M.add_lag(cached_category(version, tuple(sel_channels), tuple(sel_categories), data.df), P)
+    fdf = M.add_lag(cached_category(vkey, tuple(sel_channels), tuple(sel_categories), base_df), P)
     ct = M.category_table(fdf, P)
     with st.container(key="panel_category"):
         ctrl = panel_header("Category performance")
@@ -308,7 +339,8 @@ if data.has_category:
 # 3b. Product performance
 # --------------------------------------------------------------------------- #
 if data.products is not None and not data.products.empty:
-    pf = M.add_lag(cached_products(version, tuple(sel_channels), tuple(sel_categories), data.products), P)
+    pf = cached_products(version, tuple(sel_channels), tuple(sel_categories), data.products)
+    pf = M.add_lag(pf[pf["code"].isin(codes)] if by_product else pf, P)
     pt = M.product_table(pf, P)
     with st.container(key="panel_product"):
         ctrl = panel_header("Product performance")

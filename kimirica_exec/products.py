@@ -65,5 +65,34 @@ def build_product_frame(prod: pd.DataFrame, gross: pd.DataFrame | None, pm: pd.D
 
     p["net_sales"] = p["gross_sales"] / (1 + config.GST_RATE)
     p["name"] = p["name"].fillna(p["code"])
+    p["category"] = p["category"].astype(object)
     return p[["date", "channel", "category", "code", "name", "mrp_sales", "gross_sales", "net_sales",
               "quantity"]].reset_index(drop=True)
+
+
+def as_sales_frame(pf: pd.DataFrame) -> pd.DataFrame:
+    """
+    The product frame rolled up to the dashboard's own grain (date x channel x category), so the
+    page's top Products filter can run every card, table and chart on just those products. Orders,
+    AOP targets and estimates don't exist per product: orders are left empty (AOV falls back to
+    ASP) and nothing is flagged as estimated.
+    """
+    sums = lambda x: x.sum(min_count=1)  # noqa: E731 -- NULL stays NULL
+    out = (pf.groupby(["date", "channel", "category"], as_index=False)
+             .agg(mrp_sales=("mrp_sales", sums), gross_sales=("gross_sales", sums),
+                  quantity=("quantity", sums), net_sales=("net_sales", sums)))
+    out["orders"] = np.nan
+    out["target_sales"] = np.nan
+    out["est"] = 0.0
+    out["channel"] = out["channel"].astype(object)
+    out["category"] = out["category"].astype(object)
+    return out[["date", "channel", "category", "mrp_sales", "gross_sales", "quantity", "orders",
+                "target_sales", "est", "net_sales"]]
+
+
+def product_labels(pf: pd.DataFrame) -> dict:
+    """code -> name for the Products filter; a name shared by two codes gets its code appended."""
+    names = pf.groupby("code")["name"].first().astype(str).str.strip()
+    dup = names.duplicated(keep=False)
+    names[dup] = names[dup] + " (" + names.index[dup].astype(str) + ")"
+    return names.sort_values().to_dict()
