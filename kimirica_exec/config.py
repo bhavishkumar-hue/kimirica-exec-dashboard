@@ -210,7 +210,9 @@ ZEPTO_DISCOUNT_ABS: dict[str, float] = {
 # Channels refreshed weekly; used only to flag an overdue weekly load.
 # Channels whose gross = sales-master MRP x (1 - that day's discount % in the weekly table), where the
 # discount % is the weekly table's own discount / its own MRP. Its gross figure is never used directly.
-WEEKLY_DISCOUNT_CHANNELS = ["Swiggy"]
+# All of them since 14 Oct 2026: the weekly sheet's own MRP doesn't always match the master (Myntra
+# 1 Aug - 22 Sep is exactly double, so its gross ran at ~2x MRP); the ratio cancels that out.
+WEEKLY_DISCOUNT_CHANNELS = ["Swiggy", "Myntra", "Nykaa", "Tira", "Blinkit", "Zepto"]
 WEEKLY_GROSS_CHANNELS = ["Blinkit", "Zepto", "Swiggy", "FK-Minutes", "Myntra", "Nykaa", "Tira"]
 WEEKLY_OVERDUE_DAYS = 9
 

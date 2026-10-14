@@ -106,6 +106,25 @@ def main(start: dt.date, end: dt.date) -> None:
           f"{_int0(dup['duplicate_groups'][0])} groups, {_int0(dup['extra_rows'][0])} extra rows")
     print("  Anything above 0 means the dashboard is summing the same day more than once.")
 
+    # ---- 3b. the sales master is a rollup of Executive_Sales_Product: they must agree --------
+    try:
+        roll = _raw(f"""
+            WITH p AS (SELECT channel, sales_date, SUM(mrp_sales) AS mrp, MAX(last_updated) AS upd
+                       FROM `{c.fqn('Executive_Sales_Product')}` WHERE sales_date BETWEEN @start AND @end GROUP BY 1, 2),
+                 m AS (SELECT {c.COL_CHANNEL} AS channel, {c.COL_DATE} AS sales_date, SUM({c.COL_MRP}) AS mrp
+                       FROM `{c.table_fqn()}` WHERE {c.COL_DATE} BETWEEN @start AND @end GROUP BY 1, 2)
+            SELECT channel, SUM(p.mrp) AS product_mrp, SUM(m.mrp) AS master_mrp,
+                   SUM(IFNULL(m.mrp, 0) - IFNULL(p.mrp, 0)) AS diff,
+                   COUNTIF(ABS(IFNULL(m.mrp, 0) - IFNULL(p.mrp, 0)) > 1) AS days_off, MAX(p.upd) AS product_refreshed
+            FROM p FULL JOIN m USING (channel, sales_date)
+            GROUP BY channel ORDER BY channel
+        """, start, end)
+        print("\nPRODUCT TABLE vs SALES MASTER  (all categories, freebies included; diff should be 0)")
+        print("  A day off means the master wasn't rolled up after the last product build.")
+        print(_fmt(roll))
+    except Exception as exc:
+        print(f"\nPRODUCT TABLE vs SALES MASTER: could not read Executive_Sales_Product ({exc})")
+
     # ---- 4. channel names across the tables -----------------------------------------------
     names = {"sales": set(raw["channel"].dropna())}
     if c.BQ_WEEKLY_TABLE:
