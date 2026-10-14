@@ -864,6 +864,11 @@ def product_table(pf: pd.DataFrame, P: Periods) -> pd.DataFrame:
     out["Units"] = mtd["quantity"]
     out["ASP"] = _ratio_col(mtd["gross_for_asp"], mtd["quantity"])
     out["MoM"] = _vpct(mtd[config.GROWTH_METRIC], lmtd[config.GROWTH_METRIC])
+    # New: nothing (or under NEW_PRODUCT_SHARE of this period) in the comparison period -- growth is
+    # meaningless there (+245,881% for a product with ₹299 last month). +inf shows as "New".
+    cur, prev = mtd[config.GROWTH_METRIC], lmtd[config.GROWTH_METRIC]
+    new = (cur > 0) & (prev.isna() | (prev <= config.NEW_PRODUCT_SHARE * cur))
+    out.loc[new, "MoM"] = np.inf
     total = mtd[config.GROWTH_METRIC].sum(min_count=1)
     out["Share"] = mtd[config.GROWTH_METRIC] / total if not is_na(total) and total > 0 else np.nan
     out["LMTD"] = lmtd[config.GROWTH_METRIC]

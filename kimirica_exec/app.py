@@ -87,6 +87,12 @@ def cached_channel_daily(version: str, channels: tuple, categories: tuple, _df: 
                            orders_override=_orders_override)
 
 
+def export_button(slot, data: bytes, name: str, key: str) -> None:
+    """A small CSV download in a panel header: the whole table, Total row included."""
+    slot.download_button("CSV", data=data, file_name=f"kimirica_{name}_{P.cur_start:%Y%m%d}_{P.as_of:%Y%m%d}.csv",
+                         mime="text/csv", key=key, icon=":material/download:", help="Download this table as CSV")
+
+
 def panel_header(title: str, subtitle: str | None = None, ratio=(3, 2)):
     left, right = st.columns(ratio, vertical_alignment="bottom")
     with left:
@@ -264,17 +270,20 @@ kpi_cards.render_pacing(snap_today, PT)
 with st.container(key="panel_channels"):
     ctrl = panel_header("Channel performance")
     with ctrl:
-        c1, c2 = st.columns([1.6, 1], vertical_alignment="center")
+        c1, c2, c3 = st.columns([1.6, 1, 0.55], vertical_alignment="center")
         with c1:
             view = seg(["Channels", "Channel groups"], "Channels", "tbl_view")
         with c2:
             raw = st.toggle("Full values", key="raw_values")
+        dl_channels = c3.empty()
     key_col = "channel" if view == "Channels" else "group"
     view_tbl = tbl if key_col == "channel" else M.channel_table(cd, P, "group", aop, scope_channels, ads)
     if view_tbl.empty:
         empty("No sales for this selection.")
     else:
         tables.channel_table(view_tbl, key_col, raw, P.cmp_short)  # AOP ach. is vs AOP to date: 100% = on pace
+        export_button(dl_channels, tables.channel_csv(view_tbl, key_col, P.cmp_short),
+                      "channels" if key_col == "channel" else "channel_groups", "dl_channels")
 
 # --------------------------------------------------------------------------- #
 # 3. Category performance
@@ -285,11 +294,14 @@ if data.has_category:
     with st.container(key="panel_category"):
         ctrl = panel_header("Category performance")
         with ctrl:
-            raw_cat = st.toggle("Full values", key="raw_cat")
+            c_raw, c_dl = st.columns([1, 0.55], vertical_alignment="center")
+            with c_raw:
+                raw_cat = st.toggle("Full values", key="raw_cat")
         if ct.empty:
             empty("No category sales for this selection.")
         else:
             tables.category_table(ct, raw_cat, P.cmp_short)
+            export_button(c_dl, tables.category_csv(ct, P.cmp_short), "categories", "dl_categories")
             charts.category_chart(ct, P)
 
 # --------------------------------------------------------------------------- #
@@ -301,16 +313,14 @@ if data.products is not None and not data.products.empty:
     with st.container(key="panel_product"):
         ctrl = panel_header("Product performance")
         with ctrl:
-            c_all, c_raw = st.columns(2)
-            with c_all:
-                show_all = st.toggle(f"All {len(pt)} products", key="prod_all") \
-                    if len(pt) > config.PRODUCT_TOP_N else True
+            c_raw, c_dl = st.columns([1, 0.55], vertical_alignment="center")
             with c_raw:
                 raw_prod = st.toggle("Full values", key="raw_prod")
         if pt.empty:
             empty("No product sales for this selection.")
         else:
-            tables.product_table(pt, raw_prod, P.cmp_short, show_all)
+            tables.product_table(pt, raw_prod, P.cmp_short)
+            export_button(c_dl, tables.product_csv(pt, P.cmp_short), "products", "dl_products")
 
 # --------------------------------------------------------------------------- #
 # 4. Growth drivers and target vs actual

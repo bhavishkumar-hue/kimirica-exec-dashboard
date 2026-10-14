@@ -19,6 +19,7 @@ Markers: * = AOV uses ASP (channel has no orders), † = includes estimated gros
 """
 from __future__ import annotations
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -33,9 +34,18 @@ HEADER_HEIGHT = 36  # the grid's own header overlay height -- fixed regardless o
                     # live); see theme.py's clip-window comment for why this exact number matters
 
 
+NEW = "New"   # growth cell for a product with nothing in the comparison period (MoM = +inf)
+
+
+def _is_new(v) -> bool:
+    return not M.is_na(v) and np.isinf(v)
+
+
 def _growth_style(v) -> str:
     if M.is_na(v):
         return ""
+    if _is_new(v):
+        return f"color: {T.ACCENT}; font-weight: 600"
     if v >= 0.0005:
         return f"color: {T.POS}"
     if v <= -0.0005:
@@ -57,7 +67,7 @@ def _ach_style_for(expected: float):
 
 
 def _pct(signed: bool):
-    return lambda v: M.fmt_pct(v, signed=signed)
+    return lambda v: NEW if _is_new(v) else M.fmt_pct(v, signed=signed)
 
 
 def _formatters(df: pd.DataFrame, raw: bool, pct_cols: dict[str, bool]) -> dict:
@@ -126,14 +136,19 @@ def _col_widths(df: pd.DataFrame, total_df: pd.DataFrame, labels: dict, raw: boo
     return widths
 
 
+def _labels(cols: list[str], first_label: str, cmp_short: str) -> dict:
+    labels = {c: {"MoM": f"Growth vs {cmp_short}", "Target": "AOP to date", "Ach.": "AOP ach."}.get(c, c)
+              for c in cols}
+    labels[cols[0]] = first_label
+    return labels
+
+
 def _col_config(df: pd.DataFrame, total_df: pd.DataFrame, first_label: str, cmp_short: str,
                 raw: bool, pct_cols: dict[str, bool]) -> dict:
     helps = _help(cmp_short)
     # cmp_short names the actual comparison ("LMTD", "LY", "Last month", ...) so the header says
     # what growth is measured against; the MRP basis lives in the tooltip to keep the header short.
-    labels = {c: {"MoM": f"Growth vs {cmp_short}", "Target": "AOP to date", "Ach.": "AOP ach."}.get(c, c)
-              for c in df.columns}
-    labels[df.columns[0]] = first_label
+    labels = _labels(list(df.columns), first_label, cmp_short)
     widths = _col_widths(df, total_df, labels, raw, pct_cols)
     cfg = {df.columns[0]: st.column_config.Column(first_label, width=widths[df.columns[0]], pinned=True)}
     for c in df.columns[1:]:
@@ -161,18 +176,15 @@ def _table_with_total(df: pd.DataFrame, sty, total_df: pd.DataFrame, raw: bool,
         # Same height rule as the main grid. Without the +2 border allowance the grid's content
         # overflowed by 2px, Streamlit treated it as scrolling and widened it by a scrollbar's width
         # (~10px where the browser shows real scrollbars), so every Total line drifted right.
+        # A main grid that scrolls (the product table) still lines up with this one -- measured with
+        # real scrollbars at 100% and 125%.
         st.dataframe(total_sty, hide_index=True, width="stretch", placeholder="—", row_height=ROW_HEIGHT,
                     height=_fit_height(1), column_config=col_config, key=f"{key}_total")
 
 
 def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, cmp_short: str, expected: float = 1.0) -> None:
     label = "Channel" if key_col == "channel" else "Channel group"
-    cols = [key_col, "MRP sales", "Gross sales", "Net sales", "Discount", "AOV", "ASP",
-           "Ad spend", "ROAS", "MoM", "Target", "Ach."]
-    if tbl["Target"].isna().all():
-        cols = [c for c in cols if c not in ("Target", "Ach.")]
-    if tbl["Ad spend"].isna().all():
-        cols = [c for c in cols if c not in ("Ad spend", "ROAS")]
+    cols = _channel_cols(tbl, key_col)
     df = tbl[cols].reset_index(drop=True)
     pct_cols = {"Discount": False, "MoM": True, "Ach.": False}
     sty = _styler(df, raw, pct_cols, expected)
@@ -181,17 +193,67 @@ def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, cmp_short: str, ex
                       _col_config(df, total_df, label, cmp_short, raw, pct_cols), f"tbl_{key_col}_{raw}")
 
 
-def product_table(pt: pd.DataFrame, raw: bool, cmp_short: str, show_all: bool) -> None:
-    """Category columns plus Units. Top products by MRP until show_all; the Total is always all products."""
-    cols = ["Product", "MRP sales", "Gross sales", "Net sales", "Discount", "Units", "ASP", "MoM", "Share"]
-    shown = pt if show_all else pt.head(config.PRODUCT_TOP_N)
-    df = shown[cols].reset_index(drop=True)
-    pct_cols = {"Discount": False, "MoM": True, "Share": False}
-    sty = _styler(df, raw, pct_cols)
-    total_df = M.add_totals_row(pt, "Product")[cols].iloc[[-1]].reset_index(drop=True)
-    _table_with_total(df, sty, total_df, raw, pct_cols, 1.0, _fit_height(len(df)),
-                      _col_config(df, total_df, "Product", cmp_short, raw, pct_cols),
-                      f"cat_prod_{raw}_{show_all}")
+PRODUCT_COLS = ["Product", "MRP sales", "Gross sales", "Net sales", "Discount", "Units", "ASP", "MoM", "Share"]
+CATEGORY_COLS = ["Category", "MRP sales", "Gross sales", "Net sales", "Discount", "ASP", "MoM", "Share"]
+SHARE_PCT = {"Discount": False, "MoM": True, "Share": False}
+
+
+def product_table(pt: pd.DataFrame, raw: bool, cmp_short: str) -> None:
+    """Category columns plus Units; every product, scrolling inside a fixed-height box."""
+    df = pt[PRODUCT_COLS].reset_index(drop=True)
+    sty = _styler(df, raw, SHARE_PCT)
+    total_df = M.add_totals_row(pt, "Product")[PRODUCT_COLS].iloc[[-1]].reset_index(drop=True)
+    rows = min(len(df), config.PRODUCT_VISIBLE_ROWS)
+    _table_with_total(df, sty, total_df, raw, SHARE_PCT, 1.0, _fit_height(rows),
+                      _col_config(df, total_df, "Product", cmp_short, raw, SHARE_PCT),
+                      f"cat_prod_{raw}")
+
+
+# --------------------------------------------------------------------------- #
+# CSV export: the full table (every row, Total included), plain numbers for Excel
+# --------------------------------------------------------------------------- #
+def _csv(tbl: pd.DataFrame, label_col: str, first_label: str, cols: list[str], cmp_short: str,
+         pct_cols: dict[str, bool]) -> bytes:
+    full = M.add_totals_row(tbl, label_col)[cols]
+    labels = _labels(cols, first_label, cmp_short)
+    out = pd.DataFrame(index=full.index)
+    for c in cols:
+        v = full[c]
+        if c in pct_cols:
+            num = pd.to_numeric(v, errors="coerce")
+            out[f"{labels[c]} (%)"] = np.where(np.isinf(num), NEW, (num * 100).round(1).astype(object))
+            out[f"{labels[c]} (%)"] = out[f"{labels[c]} (%)"].where(num.notna(), None)
+        elif c == "ROAS":
+            out[labels[c]] = pd.to_numeric(v, errors="coerce").round(2)
+        elif c in MONEY or c in PRICES or c == "Units":
+            out[labels[c]] = pd.to_numeric(v, errors="coerce").round(0)
+        else:
+            out[labels[c]] = v
+    return out.to_csv(index=False).encode("utf-8-sig")   # BOM so Excel opens it as UTF-8
+
+
+def _channel_cols(tbl: pd.DataFrame, key_col: str) -> list[str]:
+    cols = [key_col, "MRP sales", "Gross sales", "Net sales", "Discount", "AOV", "ASP",
+            "Ad spend", "ROAS", "MoM", "Target", "Ach."]
+    if tbl["Target"].isna().all():
+        cols = [c for c in cols if c not in ("Target", "Ach.")]
+    if tbl["Ad spend"].isna().all():
+        cols = [c for c in cols if c not in ("Ad spend", "ROAS")]
+    return cols
+
+
+def channel_csv(tbl: pd.DataFrame, key_col: str, cmp_short: str) -> bytes:
+    label = "Channel" if key_col == "channel" else "Channel group"
+    return _csv(tbl, key_col, label, _channel_cols(tbl, key_col), cmp_short,
+                {"Discount": False, "MoM": True, "Ach.": False})
+
+
+def category_csv(ct: pd.DataFrame, cmp_short: str) -> bytes:
+    return _csv(ct, "Category", "Category", CATEGORY_COLS, cmp_short, SHARE_PCT)
+
+
+def product_csv(pt: pd.DataFrame, cmp_short: str) -> bytes:
+    return _csv(pt, "Product", "Product", PRODUCT_COLS, cmp_short, SHARE_PCT)
 
 
 def category_table(ct: pd.DataFrame, raw: bool, cmp_short: str) -> None:

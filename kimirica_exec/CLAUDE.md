@@ -107,7 +107,10 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   products add up exactly to the dashboard's gross, weighted by the product's own gross (Website, EBO,
   Amazon, Flipkart), else its discount % in `Executive_Weekly_Gross_Product`, else the channel-day's
   discount. Zepto (`MONTH_DISCOUNT_PRODUCT_CHANNELS`) gets the channel's month discount on every
-  product. Top 20 by MRP, toggle for all.
+  product. All products, scrolling inside a 15-row box (`PRODUCT_VISIBLE_ROWS`); growth shows "New"
+  when the comparison period's MRP is missing or under 1% of this period's (`NEW_PRODUCT_SHARE`).
+- **Export:** channel, category and product tables each have a CSV button (whole table + Total,
+  plain numbers, percentages as numbers, "New" kept).
 - **Amazon-VC** lags ~1 day; its latest date is detected at runtime and its current and comparison windows
   end on that day number. Only flagged if later than its usual 1 day. This lag applies to sales only,
   never ad spend (`metrics.prepare_ads` sets lag 0): VC's spend is recorded on time, and lagging it

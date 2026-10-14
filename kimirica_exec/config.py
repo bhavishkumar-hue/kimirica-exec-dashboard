@@ -116,7 +116,8 @@ BQ_PRODUCT_MASTER = _tbl("BQ_PRODUCT_MASTER", "Product_Master_New")
 # Channels with no product-level gross at all: every product gets the channel's discount for that
 # month (owner's rule for Zepto, 15 Oct 2026).
 MONTH_DISCOUNT_PRODUCT_CHANNELS = ["Zepto"]
-PRODUCT_TOP_N = 20   # rows shown in the product table until "All products" is switched on
+PRODUCT_VISIBLE_ROWS = 15   # the product table scrolls inside a box this many rows tall
+NEW_PRODUCT_SHARE = 0.01    # "New": comparison-period MRP missing or under 1% of this period's
 
 
 def fqn(table: str) -> str:
