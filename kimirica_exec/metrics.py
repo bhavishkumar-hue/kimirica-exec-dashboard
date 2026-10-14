@@ -493,6 +493,32 @@ def aop_for(aop: pd.DataFrame | None, channels: list[str], start=None, end=None,
     return _v(a["aop"].sum(min_count=1))
 
 
+def aop_to_date(aop: pd.DataFrame | None, channels: list[str], P: "Periods", by: str = "channel"):
+    """
+    AOP for the days that have passed, per channel or group: each AOP month in the period counts in
+    proportion to its days up to as_of (a completed month in full), and a lagging channel only up to
+    its own last data day -- the same days its achieved figure covers. Used for the channel table's
+    AOP achievement and the AOP vs actual chart; the pacing panels still use the full month / year.
+    """
+    if aop is None or aop.empty:
+        return None
+    a = aop[(aop["date"] >= P.aop_start) & (aop["date"] <= P.mtd_start)]
+    if channels:
+        a = a[a["channel"].isin(channels)]
+    if a.empty:
+        return None
+    a = a.copy()
+    month_end = a["date"] + pd.offsets.MonthEnd(0)
+    days_in_month = month_end.dt.day
+    end = P.as_of - pd.to_timedelta(a["channel"].map(P.lag).astype(int), unit="D")
+    end = end.where(end < month_end, month_end)
+    covered = ((end - a["date"]).dt.days + 1).clip(lower=0)
+    a["aop_td"] = a["aop"] * covered / days_in_month
+    if by == "group":
+        a["group"] = a["channel"].map(config.CHANNEL_GROUPS).fillna("Other")
+    return a.groupby(by)["aop_td"].sum(min_count=1)
+
+
 def between(df: pd.DataFrame, start, end) -> pd.DataFrame:
     return df[(df["date"] >= start) & (df["date"] <= end)]
 
@@ -722,6 +748,7 @@ def add_totals_row(out: pd.DataFrame, label_col: str) -> pd.DataFrame:
         "Δ vs LMTD": None if is_na(mrp) or is_na(lmtd) else mrp - lmtd,
         "Orders": s("Orders"), "LMTD orders": s("LMTD orders"),
         "Ad spend": s("Ad spend"),
+        "ROAS": ratio(s("_gross_ad"), s("Ad spend")),
     }
     if "Target" in out:
         target = s("Target")
@@ -740,6 +767,19 @@ def _ad_spend_by_key(ads: pd.DataFrame | None, key: str, start, end, idx) -> pd.
     if key == "group":
         a = a.assign(group=a["channel"].map(config.CHANNEL_GROUPS).fillna("Other"))
     return a.groupby(key)["ad_spend"].sum(min_count=1).reindex(idx)
+
+
+def _gross_over_ad_dates(cd: pd.DataFrame, ads: pd.DataFrame | None, key: str, P: Periods, idx) -> pd.Series:
+    """Gross per channel/group, only over the dates that channel's/group's ad spend covers."""
+    if ads is None or ads.empty:
+        return pd.Series(np.nan, index=idx)
+    a = window(ads, P.cur_start, P.as_of)
+    if key == "group":
+        a = a.assign(group=a["channel"].map(config.CHANNEL_GROUPS).fillna("Other"))
+    span = a[a["ad_spend"].notna()].groupby(key)["date"].agg(first="min", last="max")
+    w = window(cd, P.cur_start, P.as_of)[[key, "date", "gross_sales"]].join(span, on=key)
+    w = w[(w["date"] >= w["first"]) & (w["date"] <= w["last"])]
+    return w.groupby(key)["gross_sales"].sum(min_count=1).reindex(idx)
 
 
 def channel_table(cd: pd.DataFrame, P: Periods, key: str = "channel",
@@ -767,9 +807,9 @@ def channel_table(cd: pd.DataFrame, P: Periods, key: str = "channel",
         hide = [bool(members.get(g)) and members[g] <= no_disc for g in out.index]
     out.loc[hide, "Discount"] = np.nan
     if plan is not None:
-        # AOP for the whole months in the period; achieved to date against it (read with time elapsed)
+        # AOP for the days passed (not the whole month); achieved over the same days against it
         achieved = window(cd, P.aop_start, P.as_of).groupby(key)["ach_metric"].sum(min_count=1).reindex(idx)
-        out["Target"] = plan.reindex(idx)
+        out["Target"] = aop_to_date(aop, channels or [], P, by=key).reindex(idx)
         out["Ach."] = _ratio_col(achieved, out["Target"])
     else:
         out["Target"] = mtd["target_sales"]
@@ -777,6 +817,9 @@ def channel_table(cd: pd.DataFrame, P: Periods, key: str = "channel",
     out["Orders"] = mtd["orders"]
     out["LMTD orders"] = lmtd["orders"]
     out["Ad spend"] = _ad_spend_by_key(ads, key, P.cur_start, P.as_of, idx)
+    # ROAS: gross over the dates each channel's ad spend covers ÷ that spend, as the ROAS card does.
+    out["_gross_ad"] = _gross_over_ad_dates(cd, ads, key, P, idx)
+    out["ROAS"] = _ratio_col(out["_gross_ad"], out["Ad spend"])
     out = out.dropna(subset=["MRP sales", "LMTD", "Target"], how="all")
     return out.sort_values("MRP sales", ascending=False, na_position="last").reset_index()
 
@@ -852,7 +895,7 @@ def target_frame(cd: pd.DataFrame, P: Periods, mode: str,
             return empty
         g = w.groupby("channel").agg(actual=("ach_metric", lambda x: x.sum(min_count=1)), target=("target_sales", "sum"))
     else:
-        plan = aop_for(aop, channels or [], P.aop_start, P.mtd_start, by="channel")
+        plan = aop_to_date(aop, channels or [], P, by="channel")   # AOP for the days passed
         w = window(cd, P.aop_start, P.as_of)
         if plan is not None:
             g = pd.DataFrame({"target": plan})
@@ -978,9 +1021,9 @@ def watchlist(cd: pd.DataFrame, P: Periods, tbl: pd.DataFrame, last_dates: dict,
         if r["channel"] in stale:
             continue
         name = html.escape(r["channel"])
-        if not is_na(r["Ach."]) and r["Ach."] < config.TARGET_LAG_THRESHOLD * P.aop_progress:
-            items.append(("medium", f"<b>{name}</b> has achieved {fmt_pct(r['Ach.'], signed=False)} of its AOP "
-                                    f"with {fmt_pct(P.aop_progress, signed=False)} of the time gone."))
+        if not is_na(r["Ach."]) and r["Ach."] < config.TARGET_LAG_THRESHOLD:
+            items.append(("medium", f"<b>{name}</b> has achieved {fmt_pct(r['Ach.'], signed=False)} of its "
+                                    f"AOP to date."))
         elif (not is_na(r["MoM"]) and r["MoM"] <= config.MOM_DECLINE_THRESHOLD
               and not is_na(r["Share"]) and r["Share"] >= config.MOM_MIN_SHARE):
             items.append(("medium", f"<b>{name}</b> is down {fmt_pct(abs(r['MoM']), signed=False)} {P.cmp_label}."))

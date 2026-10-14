@@ -93,10 +93,12 @@ def growth_drivers_chart(tbl: pd.DataFrame, key_col: str, height: int | None = N
     _show(fig, "drivers")
 
 
-def target_chart(tf: pd.DataFrame, height: int | None = None, expected: float = 1.0) -> None:
+def target_chart(tf: pd.DataFrame, height: int | None = None, to_date: bool = False) -> None:
+    """Achieved vs AOP. In the Period view the AOP is for the days passed, so 100% means on pace."""
+    expected = 1.0
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        y=tf["channel"], x=tf["target"], name="AOP target", orientation="h",
+        y=tf["channel"], x=tf["target"], name="AOP to date" if to_date else "AOP target", orientation="h",
         marker=dict(color=T.GHOST_STRONG, line=dict(width=0)),
         customdata=[M.fmt_inr_full(v) for v in tf["target"]], hovertemplate="%{customdata}",
     ))

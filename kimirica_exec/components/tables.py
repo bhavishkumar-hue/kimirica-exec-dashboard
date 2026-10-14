@@ -65,6 +65,8 @@ def _formatters(df: pd.DataFrame, raw: bool, pct_cols: dict[str, bool]) -> dict:
     fmt = {c: money_fmt for c in MONEY if c in df}
     fmt.update({c: M.fmt_price for c in PRICES if c in df})
     fmt.update({c: _pct(s) for c, s in pct_cols.items() if c in df})
+    if "ROAS" in df:
+        fmt["ROAS"] = M.fmt_x
     return fmt
 
 
@@ -87,9 +89,10 @@ def _help(cmp_short: str) -> dict:
         "AOV": "Gross sales ÷ orders, or ASP where orders aren't tracked",
         "ASP": "Gross sales ÷ units",
         "Ad spend": "Ad spend for the selected period",
+        "ROAS": "Gross sales ÷ ad spend, over the dates ad spend covers",
         "MoM": f"{basis} growth vs {cmp_short}",
-        "Target": "AOP for the months in the selected period",
-        "Ach.": "Achieved so far ÷ AOP. Green when on pace for the time elapsed",
+        "Target": "AOP for the days passed so far (each month pro-rated by days elapsed)",
+        "Ach.": "Achieved ÷ AOP to date, over the same days. Green at 100% or more",
         "Share": f"Share of MTD {M.metric_lc(config.GROWTH_METRIC)} in this view",
     }
 
@@ -125,7 +128,7 @@ def _col_config(df: pd.DataFrame, total_df: pd.DataFrame, first_label: str, cmp_
     helps = _help(cmp_short)
     # cmp_short names the actual comparison ("LMTD", "LY", "Last month", ...) so the header says
     # what growth is measured against; the MRP basis lives in the tooltip to keep the header short.
-    labels = {c: {"MoM": f"Growth vs {cmp_short}", "Target": "AOP", "Ach.": "AOP ach."}.get(c, c)
+    labels = {c: {"MoM": f"Growth vs {cmp_short}", "Target": "AOP to date", "Ach.": "AOP ach."}.get(c, c)
               for c in df.columns}
     labels[df.columns[0]] = first_label
     widths = _col_widths(df, total_df, labels, raw, pct_cols)
@@ -162,11 +165,11 @@ def _table_with_total(df: pd.DataFrame, sty, total_df: pd.DataFrame, raw: bool,
 def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, cmp_short: str, expected: float = 1.0) -> None:
     label = "Channel" if key_col == "channel" else "Channel group"
     cols = [key_col, "MRP sales", "Gross sales", "Net sales", "Discount", "AOV", "ASP",
-           "Ad spend", "MoM", "Target", "Ach."]
+           "Ad spend", "ROAS", "MoM", "Target", "Ach."]
     if tbl["Target"].isna().all():
         cols = [c for c in cols if c not in ("Target", "Ach.")]
     if tbl["Ad spend"].isna().all():
-        cols = [c for c in cols if c != "Ad spend"]
+        cols = [c for c in cols if c not in ("Ad spend", "ROAS")]
     df = tbl[cols].reset_index(drop=True)
     pct_cols = {"Discount": False, "MoM": True, "Ach.": False}
     sty = _styler(df, raw, pct_cols, expected)

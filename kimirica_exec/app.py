@@ -269,7 +269,7 @@ with st.container(key="panel_channels"):
     if view_tbl.empty:
         empty("No sales for this selection.")
     else:
-        tables.channel_table(view_tbl, key_col, raw, P.cmp_short, expected=P.aop_progress)
+        tables.channel_table(view_tbl, key_col, raw, P.cmp_short)  # AOP ach. is vs AOP to date: 100% = on pace
 
 # --------------------------------------------------------------------------- #
 # 3. Category performance
@@ -308,8 +308,7 @@ if t_col is not None:
         if tf.empty or tf["target"].sum() == 0:
             empty(f"No AOP loaded for {'this day' if target_mode == 'Day' else 'this period'}.")
         else:
-            charts.target_chart(tf, height=pair_height,
-                                expected=P.aop_progress if target_mode == "Period" else 1.0)
+            charts.target_chart(tf, height=pair_height, to_date=target_mode == "Period")
 
 # --------------------------------------------------------------------------- #
 # 5. Monthly trend

@@ -94,8 +94,13 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   plan is measured against anyway. The Day view of the AOP-vs-actual chart still takes its *target*
   from the daily table's `Target_Revenue` (no daily figure exists in the monthly AOP plan), but its
   achieved figure is MRP sales too, same as everywhere else. Projected = achieved extended at the
-  current daily pace. Channel/table achievement is coloured against the share of time elapsed, not
-  against 100%.
+  current daily pace. **AOP achievement to date (owner's rule, 15 Oct 2026):** the channel table's
+  "AOP to date" / "AOP ach." and the AOP-vs-actual chart (Period view) compare achieved with the AOP
+  for the days passed -- each AOP month pro-rated by days elapsed (a lagging channel only to its last
+  data day), coloured against 100% (`metrics.aop_to_date`). Only the month / FY pacing panels use the
+  full-period AOP with projected and pace.
+- **ROAS** (card and channel table) = gross ÷ ad spend, with gross counted only over the dates that
+  channel's ad spend covers.
 - **Amazon-VC** lags ~1 day; its latest date is detected at runtime and its current and comparison windows
   end on that day number. Only flagged if later than its usual 1 day. This lag applies to sales only,
   never ad spend (`metrics.prepare_ads` sets lag 0): VC's spend is recorded on time, and lagging it
