@@ -749,6 +749,7 @@ def add_totals_row(out: pd.DataFrame, label_col: str) -> pd.DataFrame:
         "Orders": s("Orders"), "LMTD orders": s("LMTD orders"),
         "Ad spend": s("Ad spend"),
         "ROAS": ratio(s("_gross_ad"), s("Ad spend")),
+        "Units": s("Units"),
     }
     if "Target" in out:
         target = s("Target")
@@ -831,6 +832,44 @@ def category_table(fdf: pd.DataFrame, P: Periods) -> pd.DataFrame:
     mtd, lmtd = mtd.reindex(idx), lmtd.reindex(idx)
     out = pd.DataFrame(index=pd.Index(idx, name="Category"))
     _common_columns(out, mtd, lmtd)
+    out = out.dropna(subset=["MRP sales", "LMTD"], how="all")
+    return out.sort_values("MRP sales", ascending=False, na_position="last").reset_index()
+
+
+def _product_sums(w: pd.DataFrame) -> pd.DataFrame:
+    s = lambda col: w.groupby("code")[col].sum(min_count=1)  # noqa: E731
+    out = pd.DataFrame({"mrp_sales": s("mrp_sales"), "gross_sales": s("gross_sales"),
+                        "net_sales": s("net_sales"), "quantity": s("quantity")})
+    out["gross_for_discount"] = w[w["mrp_sales"].notna()].groupby("code")["gross_sales"].sum(min_count=1)
+    out["gross_for_asp"] = w[w["quantity"].notna()].groupby("code")["gross_sales"].sum(min_count=1)
+    return out
+
+
+def product_table(pf: pd.DataFrame, P: Periods) -> pd.DataFrame:
+    """Same columns as the category table plus Units, one row per product (Kimirica code)."""
+    mtd = _product_sums(window(pf, P.cur_start, P.as_of))
+    lmtd = _product_sums(window(pf, P.cmp_start, P.cmp_end))
+    idx = sorted(set(mtd.index) | set(lmtd.index))
+    mtd, lmtd = mtd.reindex(idx), lmtd.reindex(idx)
+    names = pf.groupby("code")["name"].first().reindex(idx).fillna(pd.Series(idx, index=idx))
+    dup = names.duplicated(keep=False)
+    names[dup] = names[dup] + " (" + names.index[dup].astype(str) + ")"   # two codes, one short name
+
+    out = pd.DataFrame(index=pd.Index(idx, name="code"))
+    out["Product"] = names
+    out["MRP sales"] = mtd["mrp_sales"]
+    out["Gross sales"] = mtd["gross_sales"]
+    out["Net sales"] = mtd["net_sales"]
+    out["Discount"] = 1 - _ratio_col(mtd["gross_for_discount"], mtd["mrp_sales"])
+    out["Units"] = mtd["quantity"]
+    out["ASP"] = _ratio_col(mtd["gross_for_asp"], mtd["quantity"])
+    out["MoM"] = _vpct(mtd[config.GROWTH_METRIC], lmtd[config.GROWTH_METRIC])
+    total = mtd[config.GROWTH_METRIC].sum(min_count=1)
+    out["Share"] = mtd[config.GROWTH_METRIC] / total if not is_na(total) and total > 0 else np.nan
+    out["LMTD"] = lmtd[config.GROWTH_METRIC]
+    out["_quantity"] = mtd["quantity"]
+    out["_gross_for_discount"] = mtd["gross_for_discount"]
+    out["_gross_for_asp"] = mtd["gross_for_asp"]
     out = out.dropna(subset=["MRP sales", "LMTD"], how="all")
     return out.sort_values("MRP sales", ascending=False, na_position="last").reset_index()
 

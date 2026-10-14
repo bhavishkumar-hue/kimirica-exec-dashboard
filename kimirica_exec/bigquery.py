@@ -25,11 +25,13 @@ import config
 import queries
 from aop_plan import hardcoded_aop
 import estimates
+import products
 from estimates import fill_gross
 
 # Part of combine()'s cache key: st.cache_data only hashes combine's own code, so a change to the
-# gross rules in estimates.py / config.py kept serving the old cached result after a deploy.
-_LOGIC_HASH = hashlib.sha1(b"".join(open(m.__file__, "rb").read() for m in (estimates, config))).hexdigest()[:10]
+# gross rules in estimates.py / products.py / config.py kept serving the old cached result after a deploy.
+_LOGIC_HASH = hashlib.sha1(b"".join(open(m.__file__, "rb").read()
+                                    for m in (estimates, products, config))).hexdigest()[:10]
 
 IST = ZoneInfo(config.TIMEZONE)
 NUMERIC = ["mrp_sales", "gross_sales", "quantity", "orders", "target_sales"]
@@ -50,6 +52,7 @@ class DashboardData:
     fetched_at: dt.datetime
     source: str                          # "bigquery" | "demo"
     notes: list[str] = field(default_factory=list)
+    products: pd.DataFrame | None = None  # date x channel x product (see products.py); None = view hidden
 
     @property
     def has_category(self) -> bool:
@@ -157,6 +160,12 @@ def _prepare_targets(df):
 
 def _prepare_orders(df):
     return _prep_common(df, ["orders"])
+
+
+def _prepare_products(df, numeric):
+    df = _prep_common(df, numeric)
+    df["code"] = df["code"].astype("string").str.strip().replace("", pd.NA)
+    return df
 
 
 _MONTHS = {m.lower(): i for i, m in enumerate(calendar.month_abbr) if m}
@@ -320,6 +329,52 @@ def fetch_website_ebo_orders(start: dt.date, end: dt.date) -> pd.DataFrame:
     return _prepare_orders(_run(queries.orders_sql(), _dates(start, end)))
 
 
+@st.cache_data(ttl=config.TTL_SIDE_TABLES, show_spinner=False)
+def fetch_product_sales(start: dt.date, end: dt.date) -> pd.DataFrame:
+    return _prepare_products(_run(queries.product_sales_sql(), _dates(start, end)),
+                             ["mrp_sales", "own_gross", "quantity"])
+
+
+@st.cache_data(ttl=config.TTL_SIDE_TABLES, show_spinner=False)
+def fetch_product_gross(start: dt.date, end: dt.date) -> pd.DataFrame:
+    return _prepare_products(_run(queries.product_gross_sql(), _dates(start, end)),
+                             ["report_mrp", "report_gross"])
+
+
+@st.cache_data(ttl=config.TTL_SIDE_TABLES, show_spinner=False)
+def fetch_product_master() -> pd.DataFrame:
+    pm = _run(queries.product_master_sql(), {})
+    pm["code"] = pm["code"].astype("string")
+    return pm
+
+
+@st.cache_data(show_spinner=False, max_entries=4)
+def combine_products(version: str, _prod: pd.DataFrame, _gross: pd.DataFrame | None,
+                     _pm: pd.DataFrame, _df: pd.DataFrame) -> pd.DataFrame:
+    return products.build_product_frame(_prod, _gross, _pm, _df, is_excluded_category)
+
+
+def load_products(version: str, df: pd.DataFrame, start: dt.date, end: dt.date, notes: list[str]):
+    """The product view's frame, or None (view hidden) if the product tables can't be read."""
+    if not config.BQ_PRODUCT_TABLE:
+        return None
+    try:
+        prod = fetch_product_sales(start, end)
+        pm = fetch_product_master()
+    except Exception as exc:
+        notes.append(f"Product table could not be read ({exc}); the product view is hidden.")
+        return None
+    gross = None
+    if config.BQ_GROSS_PRODUCT_TABLE:
+        try:
+            gross = fetch_product_gross(start, end)
+        except Exception as exc:
+            notes.append(f"Weekly gross product table could not be read ({exc}); product gross uses "
+                         "each channel's daily discount.")
+    v = f"{version}|{len(prod)}|{len(gross) if gross is not None else 0}"
+    return combine_products(v, prod, gross, pm, df)
+
+
 @st.cache_data(show_spinner=False, max_entries=4)
 def combine(version: str, _sales: pd.DataFrame, _weekly: pd.DataFrame | None, max_date: dt.date):
     """Fill gross (weekly table, then estimates) and derive net sales. Cached per data version."""
@@ -389,12 +444,14 @@ def load_dashboard_data() -> DashboardData:
     version = f"bq|{_LOGIC_HASH}|{max_date}|{fetched_at.isoformat()}|{len(weekly) if weekly is not None else 0}"
     df, est_meta = combine(version, sales, weekly, max_date)
 
+    product_frame = load_products(version, df, hist_start, load_to, notes)
+
     return DashboardData(
         df=df, ads=ads, targets=targets, aop=aop, website_ebo_orders=website_ebo_orders,
         channel_last_date=last_dates, est_meta=est_meta,
         max_date=max_date, min_date=hist_start,
         table_modified=modified.astimezone(IST) if modified else None,
-        fetched_at=fetched_at, source="bigquery", notes=notes,
+        fetched_at=fetched_at, source="bigquery", notes=notes, products=product_frame,
     )
 
 
@@ -424,5 +481,6 @@ def _load_demo() -> DashboardData:
 
 def clear_caches() -> None:
     for fn in (fetch_columns, fetch_freshness, fetch_recent, fetch_history, fetch_weekly, fetch_ads,
-               fetch_targets, fetch_aop_raw, fetch_website_ebo_orders, combine):
+               fetch_targets, fetch_aop_raw, fetch_website_ebo_orders, combine,
+               fetch_product_sales, fetch_product_gross, fetch_product_master, combine_products):
         fn.clear()

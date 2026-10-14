@@ -67,6 +67,8 @@ def _formatters(df: pd.DataFrame, raw: bool, pct_cols: dict[str, bool]) -> dict:
     fmt.update({c: _pct(s) for c, s in pct_cols.items() if c in df})
     if "ROAS" in df:
         fmt["ROAS"] = M.fmt_x
+    if "Units" in df:
+        fmt["Units"] = M.fmt_count_full if raw else M.fmt_count
     return fmt
 
 
@@ -90,6 +92,7 @@ def _help(cmp_short: str) -> dict:
         "ASP": "Gross sales ÷ units",
         "Ad spend": "Ad spend for the selected period",
         "ROAS": "Gross sales ÷ ad spend, over the dates ad spend covers",
+        "Units": "Units sold",
         "MoM": f"{basis} growth vs {cmp_short}",
         "Target": "AOP for the days passed so far (each month pro-rated by days elapsed)",
         "Ach.": "Achieved ÷ AOP to date, over the same days. Green at 100% or more",
@@ -176,6 +179,19 @@ def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, cmp_short: str, ex
     total_df = M.add_totals_row(tbl, key_col)[cols].iloc[[-1]].reset_index(drop=True)
     _table_with_total(df, sty, total_df, raw, pct_cols, expected, _fit_height(len(df)),
                       _col_config(df, total_df, label, cmp_short, raw, pct_cols), f"tbl_{key_col}_{raw}")
+
+
+def product_table(pt: pd.DataFrame, raw: bool, cmp_short: str, show_all: bool) -> None:
+    """Category columns plus Units. Top products by MRP until show_all; the Total is always all products."""
+    cols = ["Product", "MRP sales", "Gross sales", "Net sales", "Discount", "Units", "ASP", "MoM", "Share"]
+    shown = pt if show_all else pt.head(config.PRODUCT_TOP_N)
+    df = shown[cols].reset_index(drop=True)
+    pct_cols = {"Discount": False, "MoM": True, "Share": False}
+    sty = _styler(df, raw, pct_cols)
+    total_df = M.add_totals_row(pt, "Product")[cols].iloc[[-1]].reset_index(drop=True)
+    _table_with_total(df, sty, total_df, raw, pct_cols, 1.0, _fit_height(len(df)),
+                      _col_config(df, total_df, "Product", cmp_short, raw, pct_cols),
+                      f"cat_prod_{raw}_{show_all}")
 
 
 def category_table(ct: pd.DataFrame, raw: bool, cmp_short: str) -> None:

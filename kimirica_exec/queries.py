@@ -106,6 +106,57 @@ GROUP BY date, channel
 
 
 
+_KEY_EDGE = r"^[\s\x{00A0}\x{200B}\x{FEFF}]+|[\s\x{00A0}\x{200B}\x{FEFF}]+$"
+
+
+def _clean_key(expr: str) -> str:
+    """Same key cleaning as the product build / rollup notebooks (spaces, NBSP, zero-width)."""
+    return f"NULLIF(REGEXP_REPLACE(CAST({expr} AS STRING), r'{_KEY_EDGE}', ''), '')"
+
+
+def product_sales_sql() -> str:
+    """Product MRP, own gross (where the source has it) and units, per date x channel x product."""
+    return f"""
+SELECT
+  sales_date              AS date,
+  channel,
+  itemcode_kimirica       AS code,
+  SUM(mrp_sales)          AS mrp_sales,
+  SUM(gross_sales)        AS own_gross,
+  SUM(quantity_sold)      AS quantity
+FROM `{c.fqn(c.BQ_PRODUCT_TABLE)}`
+WHERE sales_date BETWEEN @start AND @end
+GROUP BY 1, 2, 3
+""".strip()
+
+
+def product_gross_sql() -> str:
+    """The weekly reports' own MRP and gross per date x channel x product (for the discount %)."""
+    return f"""
+SELECT
+  sales_date              AS date,
+  channel,
+  itemcode_kimirica       AS code,
+  SUM(mrp_sales)          AS report_mrp,
+  SUM(gross_sales)        AS report_gross
+FROM `{c.fqn(c.BQ_GROSS_PRODUCT_TABLE)}`
+WHERE sales_date BETWEEN @start AND @end
+GROUP BY 1, 2, 3
+""".strip()
+
+
+def product_master_sql() -> str:
+    return f"""
+SELECT
+  {_clean_key('`Old Material Code`')}     AS code,
+  ANY_VALUE(`NEW SHORT DESCRIPTION`)      AS name,
+  ANY_VALUE(`Matl Group`)                 AS category
+FROM `{c.fqn(c.BQ_PRODUCT_MASTER)}`
+WHERE {_clean_key('`Old Material Code`')} IS NOT NULL
+GROUP BY 1
+""".strip()
+
+
 def orders_sql() -> str:
     """
     Authoritative Website / EBO(Stores) daily order counts, straight from the raw Shopify order

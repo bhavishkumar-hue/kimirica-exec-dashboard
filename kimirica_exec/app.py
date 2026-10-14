@@ -76,6 +76,11 @@ def cached_category(version: str, channels: tuple, categories: tuple, _df: pd.Da
 
 
 @st.cache_data(show_spinner=False, max_entries=32)
+def cached_products(version: str, channels: tuple, categories: tuple, _pf: pd.DataFrame) -> pd.DataFrame:
+    return M.filter_frame(_pf, list(channels), list(categories))
+
+
+@st.cache_data(show_spinner=False, max_entries=32)
 def cached_channel_daily(version: str, channels: tuple, categories: tuple, _df: pd.DataFrame,
                          _orders_override: pd.DataFrame | None = None) -> pd.DataFrame:
     return M.channel_daily(M.filter_frame(_df, list(channels), list(categories)), list(categories),
@@ -286,6 +291,26 @@ if data.has_category:
         else:
             tables.category_table(ct, raw_cat, P.cmp_short)
             charts.category_chart(ct, P)
+
+# --------------------------------------------------------------------------- #
+# 3b. Product performance
+# --------------------------------------------------------------------------- #
+if data.products is not None and not data.products.empty:
+    pf = M.add_lag(cached_products(version, tuple(sel_channels), tuple(sel_categories), data.products), P)
+    pt = M.product_table(pf, P)
+    with st.container(key="panel_product"):
+        ctrl = panel_header("Product performance")
+        with ctrl:
+            c_all, c_raw = st.columns(2)
+            with c_all:
+                show_all = st.toggle(f"All {len(pt)} products", key="prod_all") \
+                    if len(pt) > config.PRODUCT_TOP_N else True
+            with c_raw:
+                raw_prod = st.toggle("Full values", key="raw_prod")
+        if pt.empty:
+            empty("No product sales for this selection.")
+        else:
+            tables.product_table(pt, raw_prod, P.cmp_short, show_all)
 
 # --------------------------------------------------------------------------- #
 # 4. Growth drivers and target vs actual

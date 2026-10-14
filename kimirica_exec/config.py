@@ -107,6 +107,16 @@ BQ_AOP_TABLE = _tbl("BQ_AOP_TABLE", "AOP_targets")
 # to fall back to Executive_Sales_Master's orders for these two channels.
 BQ_ORDERS_TABLE = _tbl("BQ_ORDERS_TABLE", "shopify_kimirica.master_orders_flat")
 AUTHORITATIVE_ORDER_CHANNELS = ["Website", "EBO(Stores)"]
+# Product view. MRP / units: the product table the sales master is rolled up from. Gross: own gross
+# where the product table has it, else the product's discount in the weekly-gross product table.
+# Names and categories: the product master. Leave BQ_PRODUCT_TABLE blank to hide the product view.
+BQ_PRODUCT_TABLE = _tbl("BQ_PRODUCT_TABLE", "Executive_Sales_Product")
+BQ_GROSS_PRODUCT_TABLE = _tbl("BQ_GROSS_PRODUCT_TABLE", "Executive_Weekly_Gross_Product")
+BQ_PRODUCT_MASTER = _tbl("BQ_PRODUCT_MASTER", "Product_Master_New")
+# Channels with no product-level gross at all: every product gets the channel's discount for that
+# month (owner's rule for Zepto, 15 Oct 2026).
+MONTH_DISCOUNT_PRODUCT_CHANNELS = ["Zepto"]
+PRODUCT_TOP_N = 20   # rows shown in the product table until "All products" is switched on
 
 
 def fqn(table: str) -> str:

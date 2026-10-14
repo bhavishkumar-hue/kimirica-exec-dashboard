@@ -101,6 +101,13 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   full-period AOP with projected and pace.
 - **ROAS** (card and channel table) = gross ÷ ad spend, with gross counted only over the dates that
   channel's ad spend covers.
+- **Product view** (below categories; `products.py`, owner's rules 15 Oct 2026): MRP and units from
+  `Executive_Sales_Product`; names / categories from `Product_Master_New` (freebie and uncategorised
+  products left out, as in the category table). Gross is shared out per date x channel x category so
+  products add up exactly to the dashboard's gross, weighted by the product's own gross (Website, EBO,
+  Amazon, Flipkart), else its discount % in `Executive_Weekly_Gross_Product`, else the channel-day's
+  discount. Zepto (`MONTH_DISCOUNT_PRODUCT_CHANNELS`) gets the channel's month discount on every
+  product. Top 20 by MRP, toggle for all.
 - **Amazon-VC** lags ~1 day; its latest date is detected at runtime and its current and comparison windows
   end on that day number. Only flagged if later than its usual 1 day. This lag applies to sales only,
   never ad spend (`metrics.prepare_ads` sets lag 0): VC's spend is recorded on time, and lagging it
