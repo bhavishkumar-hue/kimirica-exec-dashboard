@@ -183,14 +183,11 @@ def _fy_label(f: pd.Timestamp) -> str:
 
 
 with st.container(key="filters"):
-    # A date range ("03/07/2026 – 30/09/2026") needs more room than a month/FY picker; at 1366px the
-    # narrow column cut off the end year. The view's own widget state is already set by this point.
-    widths = ([2.2, 1.9, 2.6, 1.6, 1.4] if st.session_state.get("view_mode") == "Custom"
-              else [2.2, 1.5, 2.8, 1.7, 1.4])
-    # Channels and Categories share one column so that on a narrow laptop, where the row wraps
-    # (theme.py), they drop to the next line together instead of Categories alone at full width.
-    f1, f2, f3, f45 = st.columns(widths[:3] + [widths[3] + widths[4]], vertical_alignment="bottom")
-    f4, f5 = f45.columns(widths[3:], vertical_alignment="bottom")
+    # Row 1 -- the period: Date, the month / FY / date range, Compare with, and the compare dates
+    # (only when Compare is Custom; the slot is always there so picking Custom doesn't reflow the bar).
+    # Row 2 -- the scope: Channels, Categories, Products, equal widths. On a narrow laptop either row
+    # wraps instead of squeezing (theme.py).
+    f1, f2, f3, f4 = st.columns([2.2, 1.9, 2.8, 2.1], vertical_alignment="bottom")
     with f1:
         mode = st.segmented_control("Date", list(M.MODES), default="Month", key="view_mode") or "Month"
     with f2:
@@ -211,30 +208,9 @@ with st.container(key="filters"):
     with f3:
         compare = st.segmented_control("Compare with", list(M.COMPARES), default="Previous period",
                                        key="compare") or "Previous period"
-    with f4:
-        sel_channels = st.multiselect("Channels", channel_options, placeholder="All channels", key="channels")
-    with f5:
-        if category_options:
-            sel_categories = st.multiselect("Categories", category_options, placeholder="All categories",
-                                            key="categories")
-        else:
-            sel_categories = []
-
-    # Products: type to search, pick one or more; the whole page then runs on just those products.
-    sel_products = []
-    if data.products is not None and not data.products.empty:
-        product_names = cached_product_labels(version, data.products)
-        pc, _ = st.columns([3, 2])
-        with pc:
-            sel_products = st.multiselect("Products", list(product_names), format_func=product_names.get,
-                                          placeholder="All products · type to search", key="products")
-
     cmp_start_custom = cmp_end_custom = None
-    if compare == "Custom":
-        # Its own row, not squeezed into f3 -- keeps the main row's columns a uniform height.
-        # Spacer widths mirror f1+f2 / f3 / f4+f5 above so this aligns under "Compare with".
-        _, cc, _ = st.columns([widths[0] + widths[1], widths[2], widths[3] + widths[4]])
-        with cc:
+    with f4:
+        if compare == "Custom":
             # Pre-fill with whatever "Previous period" compares against (all of August for September,
             # not the 30 days before it), and key the widget and the remembered pick by the selected
             # period: Streamlit keeps a keyed widget's value across reruns, so one fixed key left the
@@ -252,6 +228,24 @@ with st.container(key="filters"):
             if isinstance(cmp_picked, (tuple, list)) and len(cmp_picked) == 2:
                 st.session_state[remembered] = (cmp_picked[0], cmp_picked[1])
             cmp_start_custom, cmp_end_custom = st.session_state.get(remembered, cmp_default)
+
+    has_products = data.products is not None and not data.products.empty
+    scope_cols = st.columns(3 if has_products else 2, vertical_alignment="bottom")
+    with scope_cols[0]:
+        sel_channels = st.multiselect("Channels", channel_options, placeholder="All channels", key="channels")
+    with scope_cols[1]:
+        if category_options:
+            sel_categories = st.multiselect("Categories", category_options, placeholder="All categories",
+                                            key="categories")
+        else:
+            sel_categories = []
+    # Products: type to search, pick one or more; the whole page then runs on just those products.
+    sel_products = []
+    if has_products:
+        product_names = cached_product_labels(version, data.products)
+        with scope_cols[2]:
+            sel_products = st.multiselect("Products", list(product_names), format_func=product_names.get,
+                                          placeholder="All products", key="products")
 
 scope = sel_channels or channel_options
 # Products picked at the top: every section below runs on just those products' rows. AOP, ad spends

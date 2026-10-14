@@ -95,9 +95,9 @@ header[data-testid="stHeader"] {{ background: transparent; }}
    row wraps onto a second line instead of squeezing. */
 .st-key-filters [data-testid="stHorizontalBlock"] {{ flex-wrap: wrap; row-gap: 12px; }}
 .st-key-filters [data-testid="stColumn"]:has([data-testid="stButtonGroup"]) {{ min-width: max-content !important; }}
-.st-key-filters [data-testid="stColumn"]:has([data-testid="stDateInput"]) {{ min-width: 250px !important; }}
+.st-key-filters [data-testid="stColumn"]:has([data-testid="stDateInput"]) {{ min-width: 250px !important; max-width: 380px; }}
 .st-key-filters [data-testid="stColumn"]:has([data-testid="stSelectbox"]) {{ min-width: 190px !important; }}
-.st-key-filters [data-testid="stColumn"]:has([data-testid="stMultiSelect"]) {{ min-width: 340px !important; }}
+.st-key-filters [data-testid="stColumn"]:has([data-testid="stMultiSelect"]) {{ min-width: 290px !important; }}
 .st-key-filters [data-testid="stColumn"] [data-testid="stColumn"]:has([data-testid="stMultiSelect"]) {{ min-width: 0 !important; }}
 .st-key-filters [data-testid="stColumn"] [data-testid="stHorizontalBlock"] {{ flex-wrap: nowrap; }}
 
