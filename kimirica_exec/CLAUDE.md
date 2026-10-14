@@ -96,9 +96,10 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   achieved figure is MRP sales too, same as everywhere else. Projected = achieved extended at the
   current daily pace. **AOP achievement to date (owner's rule, 15 Oct 2026):** the channel table's
   "AOP to date" / "AOP ach." and the AOP-vs-actual chart (Period view) compare achieved with the AOP
-  for the days passed -- each AOP month pro-rated by days elapsed (a lagging channel only to its last
-  data day), coloured against 100% (`metrics.aop_to_date`). Only the month / FY pacing panels use the
-  full-period AOP with projected and pace.
+  for the days passed -- each AOP month pro-rated by days elapsed, and each channel only up to its own
+  last day with MRP sales (Flipkart a few days behind, Tira 0 days before its monthly upload),
+  coloured against 100% (`metrics.aop_to_date`, `Periods.last_dates`). Only the month / FY pacing
+  panels use the full-period AOP with projected and pace.
 - **ROAS** (card and channel table) = gross ÷ ad spend, with gross counted only over the dates that
   channel's ad spend covers.
 - **Product view** (below categories; `products.py`, owner's rules 15 Oct 2026): MRP and units from

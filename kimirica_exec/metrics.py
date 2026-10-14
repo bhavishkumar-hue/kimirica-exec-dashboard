@@ -199,6 +199,7 @@ class Periods:
     days_elapsed: int
     days_in_month: int
     lags: tuple = ()          # ((channel, days), ...) for channels whose data ends before as_of
+    last_dates: tuple = ()    # ((channel, last day with MRP sales), ...) for every channel
 
     def lag(self, channel: str) -> int:
         return dict(self.lags).get(channel, 0)
@@ -346,6 +347,7 @@ def build_periods(start, end=None, last_dates: dict | None = None,
         ytd_start=ytd_start, year_end=ytd_start + pd.DateOffset(years=1) - DAY,
         ly_ytd_start=_ly(ytd_start), ly_ytd_end=_ly(a),
         days_elapsed=a.day, days_in_month=dim, lags=detect_lags(a, last_dates),
+        last_dates=tuple((ch, pd.Timestamp(d)) for ch, d in (last_dates or {}).items() if d is not None),
     )
 
 
@@ -496,9 +498,11 @@ def aop_for(aop: pd.DataFrame | None, channels: list[str], start=None, end=None,
 def aop_to_date(aop: pd.DataFrame | None, channels: list[str], P: "Periods", by: str = "channel"):
     """
     AOP for the days that have passed, per channel or group: each AOP month in the period counts in
-    proportion to its days up to as_of (a completed month in full), and a lagging channel only up to
-    its own last data day -- the same days its achieved figure covers. Used for the channel table's
-    AOP achievement and the AOP vs actual chart; the pacing panels still use the full month / year.
+    proportion to its days up to as_of (a completed month in full), and each channel only up to its
+    own last day with MRP sales (a lagging channel, or one whose data stops early -- Flipkart a few
+    days behind, Tira before its monthly upload), so AOP covers the same days as achieved. A channel
+    with no MRP at all in the period gets 0. Used for the channel table's AOP achievement and the AOP
+    vs actual chart; the pacing panels still use the full month / year.
     """
     if aop is None or aop.empty:
         return None
@@ -511,6 +515,8 @@ def aop_to_date(aop: pd.DataFrame | None, channels: list[str], P: "Periods", by:
     month_end = a["date"] + pd.offsets.MonthEnd(0)
     days_in_month = month_end.dt.day
     end = P.as_of - pd.to_timedelta(a["channel"].map(P.lag).astype(int), unit="D")
+    last = a["channel"].map(dict(P.last_dates))                     # NaT for AOP-only channels
+    end = end.where(last.isna() | (end <= last), last)
     end = end.where(end < month_end, month_end)
     covered = ((end - a["date"]).dt.days + 1).clip(lower=0)
     a["aop_td"] = a["aop"] * covered / days_in_month
