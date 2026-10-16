@@ -64,6 +64,11 @@ html, body, .stApp, .stApp p, .stApp li, .stApp div, .stApp label, .stApp input,
 @media (max-width: 1440px) {{ .block-container {{ padding-left: 1.5rem; padding-right: 1.5rem; }} }}
 [data-testid="stToolbar"], [data-testid="stDecoration"], .stAppDeployButton, footer {{ display: none !important; }}
 header[data-testid="stHeader"] {{ background: transparent; }}
+/* Streamlit's top bar is invisible here (toolbar hidden) but still sat over the top ~60px of the page
+   and swallowed clicks: once the page was scrolled a little, taps on the filters underneath it did
+   nothing. Let clicks through, except on any button it still holds (e.g. the sidebar toggle). */
+header[data-testid="stHeader"] {{ pointer-events: none; }}
+header[data-testid="stHeader"] button, header[data-testid="stHeader"] a {{ pointer-events: auto; }}
 /* While a rerun is in progress Streamlit tags every element from the previous run data-stale="true"
    and fades it out. A Refresh reloads BigQuery for several seconds, so the whole page sat washed out
    that long. Keep it crisp instead; the new numbers swap in place when the run finishes. */
@@ -266,11 +271,17 @@ _FREEZE_JS = """
     const df = e.target instanceof Element ? e.target.closest(SEL) : null;
     armed = !!df && (e.clientY - df.getBoundingClientRect().top) <= HEADER_PX;
   };
-  const move = (e) => { if (armed) { e.stopImmediatePropagation(); e.preventDefault(); } };
+  const move = (e) => {
+    // Only while a button is actually held: if the release was missed (it happened outside the
+    // window, or a touch was cancelled) this resets instead of swallowing every move on the page.
+    if (armed && e.type !== "touchmove" && !e.buttons) { armed = false; return; }
+    if (armed) { e.stopImmediatePropagation(); e.preventDefault(); }
+  };
   const up = () => { armed = false; };
   for (const t of ["pointerdown", "mousedown", "touchstart"]) window.addEventListener(t, down, true);
   for (const t of ["pointermove", "mousemove", "touchmove", "dragstart"]) window.addEventListener(t, move, {capture: true, passive: false});
-  for (const t of ["pointerup", "mouseup", "touchend", "pointercancel"]) window.addEventListener(t, up, true);
+  for (const t of ["pointerup", "mouseup", "touchend", "pointercancel", "touchcancel"]) window.addEventListener(t, up, true);
+  window.addEventListener("blur", up);
   // The header's column menu can also change widths: drop its Autosize / Pin / Hide items, keep sorting.
   const BLOCKED = /(^|\\n)(Autosize|Pin column|Unpin column|Hide column)$/;
   new MutationObserver(() => {

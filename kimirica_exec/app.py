@@ -71,7 +71,7 @@ def seg(options: list[str], default: str, key: str) -> str:
     return value or default
 
 
-@st.cache_data(show_spinner=False, max_entries=32)
+@st.cache_data(show_spinner=False, max_entries=8)   # each entry is a copy of the sales frame
 def cached_category(version: str, channels: tuple, categories: tuple, _df: pd.DataFrame) -> pd.DataFrame:
     return M.prepare_category_frame(M.filter_frame(_df, list(channels), list(categories)))
 
@@ -81,18 +81,21 @@ def cached_product_labels(version: str, _pf: pd.DataFrame) -> dict:
     return PR.product_labels(_pf)
 
 
-@st.cache_data(show_spinner=False, max_entries=16)
+@st.cache_data(show_spinner=False, max_entries=4)
 def cached_product_sales(version: str, codes: tuple, _pf: pd.DataFrame) -> pd.DataFrame:
     """The page's data for just the products picked in the top filter (see products.as_sales_frame)."""
     return PR.as_sales_frame(_pf[_pf["code"].isin(codes)])
 
 
-@st.cache_data(show_spinner=False, max_entries=32)
-def cached_products(version: str, channels: tuple, categories: tuple, _pf: pd.DataFrame) -> pd.DataFrame:
-    return M.filter_frame(_pf, list(channels), list(categories))
+def filtered_products(channels: list, categories: list, codes: tuple, pf: pd.DataFrame) -> pd.DataFrame:
+    """Not cached: the product frame is ~35 MB, and caching a filtered copy per filter combination
+    (up to 32) pushed the app past Streamlit Cloud's memory limit -- the app restarted and the open
+    page stopped responding until it was refreshed. Filtering takes a few milliseconds."""
+    pf = M.filter_frame(pf, channels, categories)
+    return pf[pf["code"].isin(codes)] if codes else pf
 
 
-@st.cache_data(show_spinner=False, max_entries=32)
+@st.cache_data(show_spinner=False, max_entries=8)   # each entry is a copy of the sales frame
 def cached_channel_daily(version: str, channels: tuple, categories: tuple, _df: pd.DataFrame,
                          _orders_override: pd.DataFrame | None = None) -> pd.DataFrame:
     return M.channel_daily(M.filter_frame(_df, list(channels), list(categories)), list(categories),
@@ -341,8 +344,7 @@ if data.has_category:
 # 3b. Product performance
 # --------------------------------------------------------------------------- #
 if data.products is not None and not data.products.empty:
-    pf = cached_products(version, tuple(sel_channels), tuple(sel_categories), data.products)
-    pf = M.add_lag(pf[pf["code"].isin(codes)] if by_product else pf, P)
+    pf = M.add_lag(filtered_products(sel_channels, sel_categories, codes, data.products), P)
     pt = M.product_table(pf, P)
     with st.container(key="panel_product"):
         # Search sits in the header row with the other controls, so the table keeps the same gap
