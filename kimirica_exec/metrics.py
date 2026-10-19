@@ -932,6 +932,29 @@ def monthly_trend(cd: pd.DataFrame, ads: pd.DataFrame | None, P: Periods,
     return pd.DataFrame(rows)
 
 
+def daily_trend(cd: pd.DataFrame, P: Periods) -> pd.DataFrame:
+    """
+    One row per day of the selected period, with the comparison period lined up day for day (day 1
+    against day 1, ...). Ends on the last day every channel in view has data, so a lagging channel
+    (Amazon-VC) doesn't show up as a fake dip on the final day.
+    """
+    lag = max((d for _, d in P.lags), default=0)
+    end = P.as_of - pd.Timedelta(days=lag)
+    days = pd.date_range(P.cur_start, end, freq="D")
+    if len(days) == 0:
+        return pd.DataFrame()
+    shift = P.cur_start - P.cmp_start
+    sums = lambda w: w.groupby("date")[["mrp_sales", "gross_sales", "net_sales", "quantity"]].sum(min_count=1)  # noqa: E731
+    cur = sums(window(cd, P.cur_start, end)).reindex(days)
+    cmp_days = days - shift
+    prev = sums(between(cd, cmp_days.min(), min(cmp_days.max(), P.cmp_end))).reindex(cmp_days)
+    out = pd.DataFrame({"date": days, "cmp_date": cmp_days})
+    for k, col in (("mrp", "mrp_sales"), ("gross", "gross_sales"), ("net", "net_sales"), ("qty", "quantity")):
+        out[k] = cur[col].to_numpy()
+        out[f"cmp_{k}"] = prev[col].to_numpy()
+    return out
+
+
 # =========================================================================== #
 # Series for charts
 # =========================================================================== #

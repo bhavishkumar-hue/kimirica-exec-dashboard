@@ -152,6 +152,38 @@ def category_chart(ct: pd.DataFrame, P: M.Periods) -> None:
 _TREND_KEYS = {"mrp_sales": "mrp", "gross_sales": "gross", "net_sales": "net", "quantity": "qty"}
 
 
+def daily_trend_chart(dt_: pd.DataFrame, metric: str, cmp_short: str) -> None:
+    """This period as a line, the comparison period (same day number) as a faint dashed line."""
+    k = _TREND_KEYS[metric]
+    currency = metric != "quantity"
+    fmt = M.fmt_inr if currency else M.fmt_count
+    hover = []
+    for _, r in dt_.iterrows():
+        chg = M.pct(r[k], r[f"cmp_{k}"])
+        hover.append(f"<b>{M.strf(r['date'], '%a %-d %b')}</b>  {fmt(r[k])}<br>"
+                     f"{cmp_short} ({M.strf(r['cmp_date'], '%-d %b')}) {fmt(r[f'cmp_{k}'])}<br>"
+                     f"Change {M.fmt_pct(chg)}")
+    many = len(dt_) > 45
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=dt_["date"], y=dt_[f"cmp_{k}"], name=cmp_short, mode="lines",
+        line=dict(color=T.MUTED, width=1.5, dash="dot"), opacity=0.55, hoverinfo="skip",
+    ))
+    fig.add_trace(go.Scatter(
+        x=dt_["date"], y=dt_[k], name="This period", mode="lines" if many else "lines+markers",
+        line=dict(color=T.ACCENT, width=2.4), marker=dict(size=5, color=T.ACCENT),
+        customdata=hover, hovertemplate="%{customdata}<extra></extra>",
+    ))
+    _base(fig, 320, hovermode="x")
+    fig.update_xaxes(tickfont=dict(color=T.INK, size=11.5), showgrid=False,
+                     tickformat="%d %b", hoverformat="%d %b")
+    vals = dt_[[k, f"cmp_{k}"]].to_numpy(dtype=float)
+    hi = float(np.nanmax(vals)) if np.isfinite(vals).any() else 1.0
+    _money_axis(fig, 0, hi * 1.1, currency=currency)
+    fig.update_yaxes(showgrid=True, gridcolor=T.GRID)
+    _show(fig, "daily_trend")
+
+
 def monthly_trend_chart(mt: pd.DataFrame, metric: str) -> None:
     """Monthly bars for this year, last year as a faint ghost behind. Hover: value, LY, YoY, MoM."""
     k = _TREND_KEYS[metric]

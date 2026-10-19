@@ -408,6 +408,20 @@ with st.container(key="panel_monthly"):
         empty("No monthly sales for this selection.")
 
 # --------------------------------------------------------------------------- #
+# 5b. Daily trend (the selected period, day by day, against the comparison period)
+# --------------------------------------------------------------------------- #
+with st.container(key="panel_daily"):
+    ctrl = panel_header("Daily trend")
+    with ctrl:
+        d_label = seg(trend_labels, M.METRIC_LABELS[config.GROWTH_METRIC], "daily_metric")
+    d_metric = {v: k for k, v in M.METRIC_LABELS.items()}[d_label]
+    dtr = M.daily_trend(cd, P)
+    if not dtr.empty and dtr["mrp"].notna().any():
+        charts.daily_trend_chart(dtr, d_metric, P.cmp_short)
+    else:
+        empty("No daily sales for this selection.")
+
+# --------------------------------------------------------------------------- #
 # 6. Highlights
 # --------------------------------------------------------------------------- #
 with st.container(key="panel_highlights"):
