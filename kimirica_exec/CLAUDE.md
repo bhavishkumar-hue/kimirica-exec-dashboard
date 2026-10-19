@@ -45,6 +45,12 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   real data needs the owner's approval first, and must be listed here.
 - **Freebie categories** (Consumables, Freebie, Primary, Secondary, Uncategorised, any spelling) are dropped at load
   from everything, including MRP. Owner hasn't confirmed whether MRP should keep them.
+- **Gross in the product build (v3, 19 Oct 2026):** Nykaa and Myntra take their files' own
+  `gross_sales` (Myntra has it from Jul 2026). **Swiggy: the discount is on Swiggy's whole MRP**
+  (owner's rule) -- `Swiggy_sales_discount` only lists discounted products, so a product with no row
+  that day sold at zero discount: gross = MRP - discount_spend, or MRP if no row; days the discount
+  feed hasn't loaded stay NULL (from 8 Oct 2026). Where the master has this gross the dashboard uses
+  it; NULL days still fall back to the weekly-table rule below.
 - **Weekly-table gross (owner's rule; Swiggy from 6 Oct 2026, all weekly channels from 14 Oct):**
   never taken straight from the weekly table. Each day's discount % = weekly table's gross / weekly
   table's own `mrp_sales` (whole channel-day), applied to that day's sales-master MRP. Days missing
