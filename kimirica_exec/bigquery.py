@@ -53,6 +53,7 @@ class DashboardData:
     source: str                          # "bigquery" | "demo"
     notes: list[str] = field(default_factory=list)
     products: pd.DataFrame | None = None  # date x channel x product (see products.py); None = view hidden
+    product_attrs: pd.DataFrame | None = None  # code -> category, sub category(s), collection
 
     @property
     def has_category(self) -> bool:
@@ -354,16 +355,22 @@ def combine_products(version: str, _prod: pd.DataFrame, _gross: pd.DataFrame | N
     return products.build_product_frame(_prod, _gross, _pm, _df, is_excluded_category)
 
 
+@st.cache_data(show_spinner=False, max_entries=4)
+def product_attributes(version: str, _pf: pd.DataFrame, _pm: pd.DataFrame) -> pd.DataFrame:
+    return products.product_attributes(_pf, _pm)
+
+
 def load_products(version: str, df: pd.DataFrame, start: dt.date, end: dt.date, notes: list[str]):
-    """The product view's frame, or None (view hidden) if the product tables can't be read."""
+    """(product frame, product attributes), or (None, None) -- view and product filters hidden --
+    if the product tables can't be read."""
     if not config.BQ_PRODUCT_TABLE:
-        return None
+        return None, None
     try:
         prod = fetch_product_sales(start, end)
         pm = fetch_product_master()
     except Exception as exc:
         notes.append(f"Product table could not be read ({exc}); the product view is hidden.")
-        return None
+        return None, None
     gross = None
     if config.BQ_GROSS_PRODUCT_TABLE:
         try:
@@ -372,7 +379,8 @@ def load_products(version: str, df: pd.DataFrame, start: dt.date, end: dt.date, 
             notes.append(f"Weekly gross product table could not be read ({exc}); product gross uses "
                          "each channel's daily discount.")
     v = f"{version}|{len(prod)}|{len(gross) if gross is not None else 0}"
-    return combine_products(v, prod, gross, pm, df)
+    pf = combine_products(v, prod, gross, pm, df)
+    return pf, product_attributes(v, pf, pm)
 
 
 @st.cache_data(show_spinner=False, max_entries=4)
@@ -444,7 +452,7 @@ def load_dashboard_data() -> DashboardData:
     version = f"bq|{_LOGIC_HASH}|{max_date}|{fetched_at.isoformat()}|{len(weekly) if weekly is not None else 0}"
     df, est_meta = combine(version, sales, weekly, max_date)
 
-    product_frame = load_products(version, df, hist_start, load_to, notes)
+    product_frame, product_attrs = load_products(version, df, hist_start, load_to, notes)
 
     return DashboardData(
         df=df, ads=ads, targets=targets, aop=aop, website_ebo_orders=website_ebo_orders,
@@ -452,6 +460,7 @@ def load_dashboard_data() -> DashboardData:
         max_date=max_date, min_date=hist_start,
         table_modified=modified.astimezone(IST) if modified else None,
         fetched_at=fetched_at, source="bigquery", notes=notes, products=product_frame,
+        product_attrs=product_attrs,
     )
 
 
@@ -482,5 +491,6 @@ def _load_demo() -> DashboardData:
 def clear_caches() -> None:
     for fn in (fetch_columns, fetch_freshness, fetch_recent, fetch_history, fetch_weekly, fetch_ads,
                fetch_targets, fetch_aop_raw, fetch_website_ebo_orders, combine,
-               fetch_product_sales, fetch_product_gross, fetch_product_master, combine_products):
+               fetch_product_sales, fetch_product_gross, fetch_product_master, combine_products,
+               product_attributes):
         fn.clear()

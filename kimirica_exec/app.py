@@ -233,6 +233,7 @@ with st.container(key="filters"):
             cmp_start_custom, cmp_end_custom = st.session_state.get(remembered, cmp_default)
 
     has_products = data.products is not None and not data.products.empty
+    attrs = data.product_attrs if has_products else None
     scope_cols = st.columns(3 if has_products else 2, vertical_alignment="bottom")
     with scope_cols[0]:
         sel_channels = st.multiselect("Channels", channel_options, placeholder="All channels", key="channels")
@@ -242,19 +243,53 @@ with st.container(key="filters"):
                                             key="categories")
         else:
             sel_categories = []
-    # Products: type to search, pick one or more; the whole page then runs on just those products.
-    sel_products = []
+    # Sub category / sub category 2 / collection (Product_Master_New) and products: the whole page then
+    # runs on just the matching products. Each list only offers what fits the other picks.
+    sel_attrs, sel_products, attr_codes = {}, [], None
     if has_products:
+        row3 = st.columns(3, vertical_alignment="bottom")
+        slots = {"sub_category": scope_cols[2], "sub_category_2": row3[0], "collection": row3[1]}
+        labels = {"sub_category": ("Sub category", "All sub categories"),
+                  "sub_category_2": ("Sub category 2", "All"),
+                  "collection": ("Collection", "All collections")}
+        if attrs is not None:
+            pool = attrs[attrs["category"].isin(sel_categories)] if sel_categories else attrs
+            picked = {col: st.session_state.get(col, []) for col in PR.ATTRIBUTES}
+            for col in PR.ATTRIBUTES:
+                others = pool
+                for o in PR.ATTRIBUTES:
+                    if o != col and picked[o]:
+                        others = others[others[o].isin(picked[o])]
+                options = sorted(set(others[col].dropna()) | set(picked[col]))
+                with slots[col]:
+                    sel_attrs[col] = st.multiselect(labels[col][0], options, placeholder=labels[col][1], key=col)
+            if any(sel_attrs.values()):
+                match = pool
+                for col, vals in sel_attrs.items():
+                    if vals:
+                        match = match[match[col].isin(vals)]
+                attr_codes = set(match.index)
         product_names = cached_product_labels(version, data.products)
-        with scope_cols[2]:
-            sel_products = st.multiselect("Products", list(product_names), format_func=product_names.get,
+        offered = product_names
+        if attr_codes is not None or (sel_categories and attrs is not None):
+            keep = attr_codes if attr_codes is not None else set(pool.index)
+            keep = keep | set(st.session_state.get("products", []))
+            offered = {k: v for k, v in product_names.items() if k in keep}
+        with row3[2]:
+            sel_products = st.multiselect("Products", list(offered), format_func=product_names.get,
                                           placeholder="All products", key="products")
 
 scope = sel_channels or channel_options
-# Products picked at the top: every section below runs on just those products' rows. AOP, ad spends
-# and orders aren't split by product, so they drop out while products are selected.
-by_product = bool(sel_products)
-codes = tuple(sorted(sel_products))
+# Products (or a sub category / collection) picked at the top: every section below runs on just those
+# products' rows. AOP, ad spends and orders aren't split by product, so they drop out meanwhile.
+by_product = bool(sel_products) or attr_codes is not None
+if sel_products and attr_codes is not None:
+    codes = tuple(sorted(set(sel_products) & attr_codes))
+else:
+    codes = tuple(sorted(sel_products or attr_codes or ()))
+if by_product and not codes:
+    empty("No products match these filters.")
+    st.stop()
 vkey = version + (f"|p:{','.join(codes)}" if by_product else "")
 base_df = cached_product_sales(version, codes, data.products) if by_product else data.df
 P = M.build_periods(start_ts, end_ts, data.channel_last_date, mode=mode, compare=compare,
@@ -293,7 +328,8 @@ kpi_cards.render_kpis(snap, P, ads_available=ads is not None,
                       ads_note="Not split by product" if by_product else "Not connected")
 notes_line = [kpi_cards.AOV_NOTE]
 if by_product:
-    notes_line.append("AOP and ad spends aren't split by product, so they're hidden while products are selected.")
+    notes_line.append("AOP and ad spends aren't split by product, so they're hidden while a product, "
+                      "sub category or collection is selected.")
 if "Amazon-UAE" in in_scope:
     notes_line.append(kpi_cards.UAE_DISCOUNT_NOTE)
 T.note(" ".join(notes_line))

@@ -90,6 +90,28 @@ def as_sales_frame(pf: pd.DataFrame) -> pd.DataFrame:
                 "target_sales", "est", "net_sales"]]
 
 
+ATTRIBUTES = ["sub_category", "sub_category_2", "collection"]
+# Product_Master_New placeholders that mean "not set" (Sub Group 2 uses 0 and #N/A, Collection
+# Name 'Not Applicable'): such a product just isn't offered under that filter.
+_NOT_SET = {"", "0", "#n/a", "n/a", "na", "none", "nan", "null", "not applicable", "-"}
+
+
+def product_attributes(pf: pd.DataFrame, pm: pd.DataFrame) -> pd.DataFrame:
+    """code -> category, sub category, sub category 2, collection, for the products in the frame.
+    Spellings that differ only in case or spaces ('Face care' / 'Face Care') become the most
+    common one."""
+    codes = pd.Index(pf["code"].dropna().unique())
+    a = pm.drop_duplicates("code").set_index("code").reindex(codes)[ATTRIBUTES].astype("string")
+    a["category"] = pf.groupby("code")["category"].first().reindex(codes).astype("string")
+    for col in ATTRIBUTES:
+        s = a[col].str.replace(r"\s+", " ", regex=True).str.strip()
+        s = s.mask(s.str.lower().isin(_NOT_SET))
+        key = s.str.lower()
+        common = s.groupby(key).agg(lambda v: v.value_counts().index[0])
+        a[col] = key.map(common).astype("string")
+    return a
+
+
 def product_labels(pf: pd.DataFrame) -> dict:
     """code -> name for the Products filter; a name shared by two codes gets its code appended."""
     names = pf.groupby("code")["name"].first().astype(str).str.strip()
