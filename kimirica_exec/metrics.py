@@ -887,20 +887,19 @@ def product_table(pf: pd.DataFrame, P: Periods) -> pd.DataFrame:
 
 
 # --------------------------------------------------------------------------- #
-# Monthly trend: trailing months with last year's value for each
+# Monthly trend: this financial year's months with last year's value for each
 # --------------------------------------------------------------------------- #
 def _month_end_ts(m: pd.Timestamp) -> pd.Timestamp:
     return m.replace(day=calendar.monthrange(m.year, m.month)[1])
 
 
-def monthly_trend(cd: pd.DataFrame, ads: pd.DataFrame | None, P: Periods,
-                  months: int | None = None) -> pd.DataFrame:
+def monthly_trend(cd: pd.DataFrame, ads: pd.DataFrame | None, P: Periods) -> pd.DataFrame:
     """
-    One row per month. Full months use full-month totals. The current month holds MTD actuals
+    One row per month of the financial year so far (April to the selected month). Full months use full-month totals. The current month holds MTD actuals
     (lag-aware), a run-rate projection for the chart, and YoY / MoM on the same days.
     """
-    months = months or config.TREND_MONTHS
-    starts = pd.date_range(P.mtd_start - pd.DateOffset(months=months - 1), P.mtd_start, freq="MS")
+    fy_start = pd.Timestamp(config.year_start(P.mtd_start.date()))
+    starts = pd.date_range(fy_start, P.mtd_start, freq="MS")
     rows = []
     for m in starts:
         current = m == P.mtd_start

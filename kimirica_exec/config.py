@@ -266,7 +266,6 @@ def year_start(d: dt.date) -> dt.date:
     return dt.date(y, YEAR_START_MONTH, 1)
 
 
-TREND_MONTHS = 12  # monthly trend: trailing months shown, each with last year's value
 
 
 def history_start(first_date: dt.date, max_date: dt.date) -> dt.date:
