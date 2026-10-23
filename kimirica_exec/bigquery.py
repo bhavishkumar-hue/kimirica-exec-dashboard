@@ -54,6 +54,7 @@ class DashboardData:
     notes: list[str] = field(default_factory=list)
     products: pd.DataFrame | None = None  # date x channel x product (see products.py); None = view hidden
     product_attrs: pd.DataFrame | None = None  # code -> category, sub category(s), collection
+    channel_first_date: dict[str, dt.date] = field(default_factory=dict)  # earliest day with MRP
 
     @property
     def has_category(self) -> bool:
@@ -408,6 +409,7 @@ def load_dashboard_data() -> DashboardData:
         raise RuntimeError(f"No sales found in {config.table_fqn()}. Check the table and column mapping.")
     channels = meta["channel"].astype(str).str.strip().map(canonical_channel)
     last_dates = dict(zip(channels, meta["last_date"]))
+    first_dates = meta.groupby(channels.to_numpy())["first_date"].min().to_dict()
     max_date = max(last_dates.values())
     hist_start = config.history_start(min(meta["first_date"]), max_date)
     cutoff = max_date - dt.timedelta(days=config.RECENT_DAYS)
@@ -460,7 +462,7 @@ def load_dashboard_data() -> DashboardData:
         max_date=max_date, min_date=hist_start,
         table_modified=modified.astimezone(IST) if modified else None,
         fetched_at=fetched_at, source="bigquery", notes=notes, products=product_frame,
-        product_attrs=product_attrs,
+        product_attrs=product_attrs, channel_first_date=first_dates,
     )
 
 

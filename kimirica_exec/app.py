@@ -464,6 +464,14 @@ with st.container(key="panel_highlights"):
     T.section("Highlights")
     insights.highlights(M.insights(cd_today, PT, snap_today, tbl_today))
 
+# Earliest day with sales data per channel (the channels in the filter, oldest first).
+firsts = sorted(((d, ch) for ch, d in data.channel_first_date.items() if ch in scope and d is not None))
+if firsts:
+    with st.container(key="data_from"):
+        # non-breaking space / hyphen so a channel and its date never split across lines
+        T.note("Data available from: " + " · ".join(
+            f"{ch} {M.fmt_date(d, True)}".replace(" ", " ").replace("-", "‑") for d, ch in firsts))
+
 # --------------------------------------------------------------------------- #
 # Refresh
 # --------------------------------------------------------------------------- #
