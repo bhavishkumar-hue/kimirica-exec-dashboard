@@ -180,8 +180,8 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   projected, pace; figures on the bar. Always describes the latest loaded month/FY to date, regardless of
   the View/date filters (same for Highlights). **No "Needs attention" section** -- owner had it removed
   (Sep 2026); `metrics.watchlist()` / `insights.watchlist()` still exist but nothing calls them.
-- Monthly trend: this financial year's months only (April to the selected month), bars, last year's
-  same months as faint ghost bars; tooltip shows only value, last year, YoY, MoM.
+- Monthly trend: Month view January to the selected month, Financial year view April to it, Custom
+  every month the range touches; bars, last year's same months as faint ghost bars; tooltip shows only value, last year, YoY, MoM.
 - Section order: cards, pacing, channel table, category table, what-moved + AOP vs actual,
   monthly trend, highlights.
 - Pacing bar has no vertical "today" tick (owner had it removed, Sep 2026) -- just the achieved/
