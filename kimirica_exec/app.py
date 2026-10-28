@@ -243,14 +243,14 @@ with st.container(key="filters"):
                                             key="categories")
         else:
             sel_categories = []
-    # Sub category / sub category 2 / collection (Product_Master_New) and products: the whole page then
+    # Sub category / SKU ID / collection (Product_Master_New) and products: the whole page then
     # runs on just the matching products. Each list only offers what fits the other picks.
     sel_attrs, sel_products, attr_codes = {}, [], None
     if has_products:
         row3 = st.columns(3, vertical_alignment="bottom")
-        slots = {"sub_category": scope_cols[2], "sub_category_2": row3[0], "collection": row3[1]}
+        slots = {"sub_category": scope_cols[2], "sku": row3[0], "collection": row3[1]}
         labels = {"sub_category": ("Sub category", "All sub categories"),
-                  "sub_category_2": ("Sub category 2", "All"),
+                  "sku": ("SKU ID", "All SKUs"),
                   "collection": ("Collection", "All collections")}
         if attrs is not None:
             pool = attrs[attrs["category"].isin(sel_categories)] if sel_categories else attrs

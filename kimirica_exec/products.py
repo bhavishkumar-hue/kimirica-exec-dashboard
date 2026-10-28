@@ -90,20 +90,21 @@ def as_sales_frame(pf: pd.DataFrame) -> pd.DataFrame:
                 "target_sales", "est", "net_sales"]]
 
 
-ATTRIBUTES = ["sub_category", "sub_category_2", "collection"]
-# Product_Master_New placeholders that mean "not set" (Sub Group 2 uses 0 and #N/A, Collection
-# Name 'Not Applicable'): such a product just isn't offered under that filter.
+ATTRIBUTES = ["sub_category", "sku", "collection"]          # the top-bar filters, in this order
+_MASTER_ATTRIBUTES = ["sub_category", "collection"]           # from Product_Master_New
+# Product_Master_New placeholders that mean "not set" (Sub Group uses None, Collection Name
+# 'Not Applicable'): such a product just isn't offered under that filter.
 _NOT_SET = {"", "0", "#n/a", "n/a", "na", "none", "nan", "null", "not applicable", "-"}
 
 
 def product_attributes(pf: pd.DataFrame, pm: pd.DataFrame) -> pd.DataFrame:
-    """code -> category, sub category, sub category 2, collection, for the products in the frame.
-    Spellings that differ only in case or spaces ('Face care' / 'Face Care') become the most
-    common one."""
+    """code -> category, sub category, SKU id (the Kimirica code itself), collection, for the
+    products in the frame. Spellings that differ only in case or spaces become the most common one."""
     codes = pd.Index(pf["code"].dropna().unique())
-    a = pm.drop_duplicates("code").set_index("code").reindex(codes)[ATTRIBUTES].astype("string")
+    a = pm.drop_duplicates("code").set_index("code").reindex(codes)[_MASTER_ATTRIBUTES].astype("string")
+    a["sku"] = codes.astype("string")
     a["category"] = pf.groupby("code")["category"].first().reindex(codes).astype("string")
-    for col in ATTRIBUTES:
+    for col in _MASTER_ATTRIBUTES:
         s = a[col].str.replace(r"\s+", " ", regex=True).str.strip()
         s = s.mask(s.str.lower().isin(_NOT_SET))
         key = s.str.lower()

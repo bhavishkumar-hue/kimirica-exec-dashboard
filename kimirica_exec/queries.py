@@ -152,7 +152,6 @@ SELECT
   ANY_VALUE(`NEW SHORT DESCRIPTION`)      AS name,
   ANY_VALUE(`Matl Group`)                 AS category,
   ANY_VALUE(`Sub Group`)                  AS sub_category,
-  ANY_VALUE(`Sub Group 2`)                AS sub_category_2,
   ANY_VALUE(`Collection Name`)            AS collection
 FROM `{c.fqn(c.BQ_PRODUCT_MASTER)}`
 WHERE {_clean_key('`Old Material Code`')} IS NOT NULL
