@@ -822,6 +822,7 @@ def channel_table(cd: pd.DataFrame, P: Periods, key: str = "channel",
     else:
         out["Target"] = mtd["target_sales"]
         out["Ach."] = _ratio_col(mtd["t_act"], mtd["target_sales"])
+    out["Units"] = mtd["quantity"]
     out["Orders"] = mtd["orders"]
     out["LMTD orders"] = lmtd["orders"]
     out["Ad spend"] = _ad_spend_by_key(ads, key, P.cur_start, P.as_of, idx)

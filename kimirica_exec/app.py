@@ -248,7 +248,7 @@ with st.container(key="filters"):
     sel_attrs, sel_products, attr_codes = {}, [], None
     if has_products:
         row3 = st.columns(3, vertical_alignment="bottom")
-        slots = {"sub_category": scope_cols[2], "sku": row3[0], "collection": row3[1]}
+        slots = {"sub_category": scope_cols[2], "collection": row3[0], "sku": row3[1]}
         labels = {"sub_category": ("Sub category", "All sub categories"),
                   "sku": ("SKU ID", "All SKUs"),
                   "collection": ("Collection", "All collections")}
@@ -276,7 +276,7 @@ with st.container(key="filters"):
             keep = keep | set(st.session_state.get("products", []))
             offered = {k: v for k, v in product_names.items() if k in keep}
         with row3[2]:
-            sel_products = st.multiselect("Products", list(offered), format_func=product_names.get,
+            sel_products = st.multiselect("Product name", list(offered), format_func=product_names.get,
                                           placeholder="All products", key="products")
 
 scope = sel_channels or channel_options

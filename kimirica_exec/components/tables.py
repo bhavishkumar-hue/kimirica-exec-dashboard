@@ -233,7 +233,7 @@ def _csv(tbl: pd.DataFrame, label_col: str, first_label: str, cols: list[str], c
 
 
 def _channel_cols(tbl: pd.DataFrame, key_col: str) -> list[str]:
-    cols = [key_col, "MRP sales", "Gross sales", "Net sales", "Discount", "AOV", "ASP",
+    cols = [key_col, "MRP sales", "Gross sales", "Net sales", "Discount", "Units", "AOV", "ASP",
             "Ad spend", "ROAS", "MoM", "Target", "Ach."]
     if tbl["Target"].isna().all():
         cols = [c for c in cols if c not in ("Target", "Ach.")]

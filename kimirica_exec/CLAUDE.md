@@ -106,6 +106,7 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   last day with MRP sales (Flipkart a few days behind, Tira 0 days before its monthly upload),
   coloured against 100% (`metrics.aop_to_date`, `Periods.last_dates`). Only the month / FY pacing
   panels use the full-period AOP with projected and pace.
+- **Units** (channel table) = quantity sold in the period, next to Discount.
 - **ROAS** (card and channel table) = gross ÷ ad spend, with gross counted only over the dates that
   channel's ad spend covers.
 - **Product view** (below categories; `products.py`, owner's rules 15 Oct 2026): MRP and units from
@@ -120,8 +121,8 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   those products' rows (`products.as_sales_frame`, same date x channel x category grain): cards,
   channel / category / product tables, drivers, monthly trend, highlights. AOP (pacing, AOP columns,
   AOP chart) and ad spends / ROAS are hidden then -- they aren't split by product; AOV = ASP.
-- **Sub category / SKU ID / Collection filters** = Product_Master_New `Sub Group`, the Kimirica item
-  code, `Collection Name` (`products.product_attributes`). Picking any of them selects the matching
+- **Sub category / Collection / SKU ID filters** = Product_Master_New `Sub Group`, `Collection Name`,
+  the Kimirica item code (`products.product_attributes`). Picking any of them selects the matching
   products and works exactly like the Products filter (intersected with it if both are set).
   Placeholders (None, Not Applicable) count as not set; case-only spelling variants are merged.
   Each list (and Products) only offers values that fit the categories and other picks.

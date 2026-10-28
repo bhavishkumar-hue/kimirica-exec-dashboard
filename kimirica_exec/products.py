@@ -90,7 +90,7 @@ def as_sales_frame(pf: pd.DataFrame) -> pd.DataFrame:
                 "target_sales", "est", "net_sales"]]
 
 
-ATTRIBUTES = ["sub_category", "sku", "collection"]          # the top-bar filters, in this order
+ATTRIBUTES = ["sub_category", "collection", "sku"]          # the top-bar filters, in this order
 _MASTER_ATTRIBUTES = ["sub_category", "collection"]           # from Product_Master_New
 # Product_Master_New placeholders that mean "not set" (Sub Group uses None, Collection Name
 # 'Not Applicable'): such a product just isn't offered under that filter.
