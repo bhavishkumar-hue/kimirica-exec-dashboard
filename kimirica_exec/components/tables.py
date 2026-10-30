@@ -1,4 +1,4 @@
-"""
+﻿"""
 Tables. A pandas Styler controls display (₹ L/Cr, %, markers, subtle colour) while the underlying
 numbers stay numeric, so st.dataframe's native column-header sort stays correct.
 
@@ -53,6 +53,11 @@ def _growth_style(v) -> str:
     return f"color: {T.MUTED}"
 
 
+def _inverse_growth_style(v) -> str:
+    """A rising discount is the bad direction."""
+    return _growth_style(-v) if not M.is_na(v) else ""
+
+
 def _ach_style_for(expected: float):
     """Colour achievement against where it should be by now (share of the month elapsed)."""
     def style(v) -> str:
@@ -84,8 +89,11 @@ def _formatters(df: pd.DataFrame, raw: bool, pct_cols: dict[str, bool]) -> dict:
 
 def _styler(df: pd.DataFrame, raw: bool, pct_cols: dict[str, bool], expected: float = 1.0):
     sty = df.style.format(_formatters(df, raw, pct_cols), na_rep="—")
-    if "MoM" in df:
-        sty = sty.map(_growth_style, subset=["MoM"])
+    for c in ("MoM", "Units chg"):
+        if c in df:
+            sty = sty.map(_growth_style, subset=[c])
+    if "Disc. chg" in df:
+        sty = sty.map(_inverse_growth_style, subset=["Disc. chg"])
     if "Ach." in df:
         sty = sty.map(_ach_style_for(expected), subset=["Ach."])
     return sty.set_properties(subset=[df.columns[0]], **{"font-weight": "600", "color": T.INK})
@@ -103,6 +111,8 @@ def _help(cmp_short: str) -> dict:
         "Ad spend": "Ad spend for the selected period",
         "ROAS": "Gross sales ÷ ad spend, over the dates ad spend covers",
         "Units": "Units sold",
+        "Units chg": f"Units sold vs {cmp_short}",
+        "Disc. chg": f"Change in discount % vs {cmp_short}",
         "MoM": f"{basis} growth vs {cmp_short}",
         "Target": "AOP for the days passed so far (each month pro-rated by days elapsed)",
         "Ach.": "Achieved ÷ AOP to date, over the same days. Green at 100% or more",
@@ -112,7 +122,7 @@ def _help(cmp_short: str) -> dict:
 
 # Approximate rendered character widths for the grid's canvas font, measured off screenshots.
 _VALUE_CH, _HEADER_CH, _BOLD_CH = 7.2, 6.6, 7.3
-_CELL_PAD, _HEADER_PAD, _MIN_WIDTH = 22, 30, 60
+_CELL_PAD, _HEADER_PAD, _MIN_WIDTH = 20, 27, 60
 
 
 def _col_widths(df: pd.DataFrame, total_df: pd.DataFrame, labels: dict, raw: bool,
@@ -136,8 +146,11 @@ def _col_widths(df: pd.DataFrame, total_df: pd.DataFrame, labels: dict, raw: boo
     return widths
 
 
-def _labels(cols: list[str], first_label: str, cmp_short: str) -> dict:
-    labels = {c: {"MoM": f"Growth vs {cmp_short}", "Target": "AOP to date", "Ach.": "AOP ach."}.get(c, c)
+def _labels(cols: list[str], first_label: str, cmp_short: str, short: bool = False) -> dict:
+    # On screen the change columns sit right after Discount / Units, so "vs LMTD" is enough and
+    # keeps the channel table inside a 1366px laptop; the CSV spells them out.
+    units, disc = (f"vs {cmp_short}",) * 2 if short else (f"Units vs {cmp_short}", f"Discount vs {cmp_short}")
+    labels = {c: {"MoM": f"Growth vs {cmp_short}", "Units chg": units, "Disc. chg": disc, "Target": "AOP to date", "Ach.": "AOP ach."}.get(c, c)
               for c in cols}
     labels[cols[0]] = first_label
     return labels
@@ -148,7 +161,7 @@ def _col_config(df: pd.DataFrame, total_df: pd.DataFrame, first_label: str, cmp_
     helps = _help(cmp_short)
     # cmp_short names the actual comparison ("LMTD", "LY", "Last month", ...) so the header says
     # what growth is measured against; the MRP basis lives in the tooltip to keep the header short.
-    labels = _labels(list(df.columns), first_label, cmp_short)
+    labels = _labels(list(df.columns), first_label, cmp_short, short=True)
     widths = _col_widths(df, total_df, labels, raw, pct_cols)
     cfg = {df.columns[0]: st.column_config.Column(first_label, width=widths[df.columns[0]], pinned=True)}
     for c in df.columns[1:]:
@@ -186,7 +199,7 @@ def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, cmp_short: str, ex
     label = "Channel" if key_col == "channel" else "Channel group"
     cols = _channel_cols(tbl, key_col)
     df = tbl[cols].reset_index(drop=True)
-    pct_cols = {"Discount": False, "MoM": True, "Ach.": False}
+    pct_cols = CHANNEL_PCT
     sty = _styler(df, raw, pct_cols, expected)
     total_df = M.add_totals_row(tbl, key_col)[cols].iloc[[-1]].reset_index(drop=True)
     _table_with_total(df, sty, total_df, raw, pct_cols, expected, _fit_height(len(df)),
@@ -194,8 +207,10 @@ def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, cmp_short: str, ex
 
 
 PRODUCT_COLS = ["Product", "MRP sales", "Gross sales", "Net sales", "Discount", "Units", "ASP", "MoM", "Share"]
-CATEGORY_COLS = ["Category", "MRP sales", "Gross sales", "Net sales", "Discount", "ASP", "MoM", "Share"]
-SHARE_PCT = {"Discount": False, "MoM": True, "Share": False}
+CATEGORY_COLS = ["Category", "MRP sales", "Gross sales", "Net sales", "Discount", "Disc. chg", "Units",
+                 "Units chg", "ASP", "MoM", "Share"]
+SHARE_PCT = {"Discount": False, "Disc. chg": True, "Units chg": True, "MoM": True, "Share": False}
+CHANNEL_PCT = {"Discount": False, "Disc. chg": True, "Units chg": True, "MoM": True, "Ach.": False}
 
 
 def product_table(pt: pd.DataFrame, raw: bool, cmp_short: str) -> None:
@@ -233,7 +248,8 @@ def _csv(tbl: pd.DataFrame, label_col: str, first_label: str, cols: list[str], c
 
 
 def _channel_cols(tbl: pd.DataFrame, key_col: str) -> list[str]:
-    cols = [key_col, "MRP sales", "Gross sales", "Net sales", "Discount", "Units", "AOV", "ASP",
+    cols = [key_col, "MRP sales", "Gross sales", "Net sales", "Discount", "Disc. chg", "Units", "Units chg",
+            "AOV", "ASP",
             "Ad spend", "ROAS", "MoM", "Target", "Ach."]
     if tbl["Target"].isna().all():
         cols = [c for c in cols if c not in ("Target", "Ach.")]
@@ -244,8 +260,7 @@ def _channel_cols(tbl: pd.DataFrame, key_col: str) -> list[str]:
 
 def channel_csv(tbl: pd.DataFrame, key_col: str, cmp_short: str) -> bytes:
     label = "Channel" if key_col == "channel" else "Channel group"
-    return _csv(tbl, key_col, label, _channel_cols(tbl, key_col), cmp_short,
-                {"Discount": False, "MoM": True, "Ach.": False})
+    return _csv(tbl, key_col, label, _channel_cols(tbl, key_col), cmp_short, CHANNEL_PCT)
 
 
 def category_csv(ct: pd.DataFrame, cmp_short: str) -> bytes:
@@ -259,9 +274,9 @@ def product_csv(pt: pd.DataFrame, cmp_short: str) -> bytes:
 def category_table(ct: pd.DataFrame, raw: bool, cmp_short: str) -> None:
     # No AOV here: an order spans categories, so a per-category order count (and the AOV built on
     # it) is not a real number. ASP (gross / units) is fine at category grain and stays.
-    cols = ["Category", "MRP sales", "Gross sales", "Net sales", "Discount", "ASP", "MoM", "Share"]
+    cols = CATEGORY_COLS
     df = ct[cols].reset_index(drop=True)
-    pct_cols = {"Discount": False, "MoM": True, "Share": False}
+    pct_cols = SHARE_PCT
     sty = _styler(df, raw, pct_cols)
     total_df = M.add_totals_row(ct, "Category")[cols].iloc[[-1]].reset_index(drop=True)
     _table_with_total(df, sty, total_df, raw, pct_cols, 1.0, _fit_height(len(df)),

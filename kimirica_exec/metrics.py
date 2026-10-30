@@ -700,6 +700,10 @@ def _common_columns(out: pd.DataFrame, mtd: pd.DataFrame, lmtd: pd.DataFrame) ->
     out["Gross sales"] = mtd["gross_sales"]
     out["Net sales"] = mtd["net_sales"]
     out["Discount"] = 1 - _ratio_col(mtd["gross_for_discount"], mtd["mrp_sales"])
+    # Discount and units vs the comparison period, as plain % change (like the cards)
+    out["Disc. chg"] = _vpct(out["Discount"], 1 - _ratio_col(lmtd["gross_for_discount"], lmtd["mrp_sales"]))
+    out["Units"] = mtd["quantity"]
+    out["Units chg"] = _vpct(mtd["quantity"], lmtd["quantity"])
     out["AOV"] = _ratio_col(mtd["aov_num"], mtd["aov_den"])
     out["ASP"] = _ratio_col(mtd["gross_for_asp"], mtd["quantity"])
     out["MoM"] = _vpct(mtd[config.GROWTH_METRIC], lmtd[config.GROWTH_METRIC])
@@ -717,6 +721,9 @@ def _common_columns(out: pd.DataFrame, mtd: pd.DataFrame, lmtd: pd.DataFrame) ->
     out["_aov_den"] = mtd["aov_den"]
     out["_gross_for_discount"] = mtd["gross_for_discount"]
     out["_gross_for_asp"] = mtd["gross_for_asp"]
+    out["_lmtd_quantity"] = lmtd["quantity"]
+    out["_lmtd_mrp"] = lmtd["mrp_sales"]
+    out["_lmtd_gross_for_discount"] = lmtd["gross_for_discount"]
 
 
 TOTAL_LABEL = "Total"
@@ -742,10 +749,15 @@ def add_totals_row(out: pd.DataFrame, label_col: str) -> pd.DataFrame:
     # channel day's estimate against the whole Total row, the same distortion row-level Discount/ASP
     # already guards against.
     gross_disc, gross_asp = s("_gross_for_discount"), s("_gross_for_asp")
+    disc = ratio(mrp - gross_disc, mrp) if not (is_na(mrp) or is_na(gross_disc)) else np.nan
+    p_mrp, p_gross_disc = s("_lmtd_mrp"), s("_lmtd_gross_for_discount")
+    p_disc = ratio(p_mrp - p_gross_disc, p_mrp) if not (is_na(p_mrp) or is_na(p_gross_disc)) else None
     total = {
         label_col: TOTAL_LABEL,
         "MRP sales": mrp, "Gross sales": gross, "Net sales": s("Net sales"),
-        "Discount": ratio(mrp - gross_disc, mrp) if not (is_na(mrp) or is_na(gross_disc)) else np.nan,
+        "Discount": disc,
+        "Disc. chg": pct(disc, p_disc),
+        "Units chg": pct(s("Units"), s("_lmtd_quantity")),
         "AOV": ratio(s("_aov_num"), s("_aov_den")),
         "ASP": ratio(gross_asp, s("_quantity")),
         "MoM": pct(mrp, lmtd),
@@ -813,7 +825,7 @@ def channel_table(cd: pd.DataFrame, P: Periods, key: str = "channel",
         for ch, g in config.CHANNEL_GROUPS.items():
             members.setdefault(g, set()).add(ch)
         hide = [bool(members.get(g)) and members[g] <= no_disc for g in out.index]
-    out.loc[hide, "Discount"] = np.nan
+    out.loc[hide, ["Discount", "Disc. chg"]] = np.nan
     if plan is not None:
         # AOP for the days passed (not the whole month); achieved over the same days against it
         achieved = window(cd, P.aop_start, P.as_of).groupby(key)["ach_metric"].sum(min_count=1).reindex(idx)
@@ -822,7 +834,6 @@ def channel_table(cd: pd.DataFrame, P: Periods, key: str = "channel",
     else:
         out["Target"] = mtd["target_sales"]
         out["Ach."] = _ratio_col(mtd["t_act"], mtd["target_sales"])
-    out["Units"] = mtd["quantity"]
     out["Orders"] = mtd["orders"]
     out["LMTD orders"] = lmtd["orders"]
     out["Ad spend"] = _ad_spend_by_key(ads, key, P.cur_start, P.as_of, idx)
