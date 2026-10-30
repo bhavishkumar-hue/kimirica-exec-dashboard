@@ -144,12 +144,20 @@ def _prep_common(df: pd.DataFrame, numeric: list[str]) -> pd.DataFrame:
     return df
 
 
+def _net_to_gross(df, col):
+    """config.GROSS_IS_NET_FROM: that channel's figure in `col` is net of GST, so add the GST back."""
+    for ch, start in config.GROSS_IS_NET_FROM.items():
+        rows = (df["channel"] == ch) & (df["date"] >= pd.Timestamp(start))
+        df.loc[rows, col] = df.loc[rows, col] * (1 + config.GST_RATE)
+    return df
+
+
 def _prepare_sales(df):
-    return _prep_common(df, NUMERIC)
+    return _net_to_gross(_prep_common(df, NUMERIC), "gross_sales")
 
 
 def _prepare_weekly(df):
-    return _prep_common(df, ["gross_sales", "mrp_sales"])
+    return _net_to_gross(_prep_common(df, ["gross_sales", "mrp_sales"]), "gross_sales")
 
 
 def _prepare_ads(df):
@@ -333,14 +341,14 @@ def fetch_website_ebo_orders(start: dt.date, end: dt.date) -> pd.DataFrame:
 
 @st.cache_data(ttl=config.TTL_SIDE_TABLES, show_spinner=False)
 def fetch_product_sales(start: dt.date, end: dt.date) -> pd.DataFrame:
-    return _prepare_products(_run(queries.product_sales_sql(), _dates(start, end)),
-                             ["mrp_sales", "own_gross", "quantity"])
+    return _net_to_gross(_prepare_products(_run(queries.product_sales_sql(), _dates(start, end)),
+                                           ["mrp_sales", "own_gross", "quantity"]), "own_gross")
 
 
 @st.cache_data(ttl=config.TTL_SIDE_TABLES, show_spinner=False)
 def fetch_product_gross(start: dt.date, end: dt.date) -> pd.DataFrame:
-    return _prepare_products(_run(queries.product_gross_sql(), _dates(start, end)),
-                             ["report_mrp", "report_gross"])
+    return _net_to_gross(_prepare_products(_run(queries.product_gross_sql(), _dates(start, end)),
+                                           ["report_mrp", "report_gross"]), "report_gross")
 
 
 @st.cache_data(ttl=config.TTL_SIDE_TABLES, show_spinner=False)

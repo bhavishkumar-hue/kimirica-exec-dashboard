@@ -82,6 +82,8 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   gross over the dates ad spend covers (spend data starts partway through the FY; a full-year view
   was dividing six months of gross by one month of spend: 29x ROAS).
 - **Net sales** = gross / 1.18.
+- **Tira** gross in the source tables is really net from 1 May 2026, so it is x1.18 at load (all tables) before
+  discount is worked out (`config.GROSS_IS_NET_FROM`). Mar-Apr 2026 weekly figures are already gross.
 - **AOV:** orders where the sales master has them; elsewhere quantity counts as orders, so AOV = ASP.
   Orders data is unreliable; no orders column is shown. **Website and EBO(Stores) never use
   Executive_Sales_Master's own `orders`** -- it's per category row, so summing it across a channel

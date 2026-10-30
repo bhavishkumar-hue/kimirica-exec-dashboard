@@ -218,6 +218,11 @@ ZEPTO_DISCOUNT_ABS: dict[str, float] = {
     "2026-07": 426_727, "2026-08": 1_690_115, "2026-09": 986_025,
 }
 
+# Channels whose source "gross" is really net of GST from this date on (owner, Oct 2026): it's
+# multiplied by 1 + GST_RATE at load, in every table, before any discount is worked out from it.
+# Tira's weekly figures before May 2026 are already gross (x1.18 would leave a 1-2% discount).
+GROSS_IS_NET_FROM: dict[str, str] = {"Tira": "2026-05-01"}
+
 # Channels refreshed weekly; used only to flag an overdue weekly load.
 # Channels whose gross = sales-master MRP x (1 - that day's discount % in the weekly table), where the
 # discount % is the weekly table's own discount / its own MRP. Its gross figure is never used directly.
