@@ -109,7 +109,7 @@ def _help(cmp_short: str) -> dict:
         "AOV": "Gross sales ÷ orders, or ASP where orders aren't tracked",
         "ASP": "Gross sales ÷ units",
         "Ad spend": "Ad spend for the selected period",
-        "ROAS": "Gross sales ÷ ad spend, over the dates ad spend covers",
+        "ROAS": "Gross sales ÷ ad spend, over the dates ad spend covers. Total: all channels' gross, as on the card",
         "Units": "Units sold",
         "Units chg": f"Units sold vs {cmp_short}",
         "Disc. chg": f"Change in discount % vs {cmp_short}",

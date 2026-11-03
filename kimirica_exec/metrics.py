@@ -767,7 +767,8 @@ def add_totals_row(out: pd.DataFrame, label_col: str) -> pd.DataFrame:
         "Δ vs LMTD": None if is_na(mrp) or is_na(lmtd) else mrp - lmtd,
         "Orders": s("Orders"), "LMTD orders": s("LMTD orders"),
         "Ad spend": s("Ad spend"),
-        "ROAS": ratio(s("_gross_ad"), s("Ad spend")),
+        # Blended, like the ROAS card: gross from every channel (with ad spend or not) ÷ all spend.
+        "ROAS": ratio(s("_gross_ad_all"), s("Ad spend")),
         "Units": s("Units"),
     }
     if "Target" in out:
@@ -799,6 +800,20 @@ def _gross_over_ad_dates(cd: pd.DataFrame, ads: pd.DataFrame | None, key: str, P
     span = a[a["ad_spend"].notna()].groupby(key)["date"].agg(first="min", last="max")
     w = window(cd, P.cur_start, P.as_of)[[key, "date", "gross_sales"]].join(span, on=key)
     w = w[(w["date"] >= w["first"]) & (w["date"] <= w["last"])]
+    return w.groupby(key)["gross_sales"].sum(min_count=1).reindex(idx)
+
+
+def _gross_over_all_ad_dates(cd: pd.DataFrame, ads: pd.DataFrame | None, key: str, P: Periods, idx) -> pd.Series:
+    """Gross per channel/group over the span ANY ad spend covers -- channels without spend included.
+    Summed, it's the ROAS card's gross, so the Total row's ROAS matches the card (blended ROAS)."""
+    if ads is None or ads.empty:
+        return pd.Series(np.nan, index=idx)
+    spent = window(ads, P.cur_start, P.as_of)
+    spent = spent.loc[spent["ad_spend"].notna(), "date"]
+    if spent.empty:
+        return pd.Series(np.nan, index=idx)
+    w = window(cd, P.cur_start, P.as_of)
+    w = w[(w["date"] >= spent.min()) & (w["date"] <= spent.max())]
     return w.groupby(key)["gross_sales"].sum(min_count=1).reindex(idx)
 
 
@@ -840,6 +855,7 @@ def channel_table(cd: pd.DataFrame, P: Periods, key: str = "channel",
     # ROAS: gross over the dates each channel's ad spend covers ÷ that spend, as the ROAS card does.
     out["_gross_ad"] = _gross_over_ad_dates(cd, ads, key, P, idx)
     out["ROAS"] = _ratio_col(out["_gross_ad"], out["Ad spend"])
+    out["_gross_ad_all"] = _gross_over_all_ad_dates(cd, ads, key, P, idx)
     out = out.dropna(subset=["MRP sales", "LMTD", "Target"], how="all")
     return out.sort_values("MRP sales", ascending=False, na_position="last").reset_index()
 

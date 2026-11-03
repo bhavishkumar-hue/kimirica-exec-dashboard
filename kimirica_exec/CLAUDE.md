@@ -112,7 +112,7 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   units and discount as plain % change vs the comparison period ("vs LMTD" after Discount and Units; a rising
   discount is red). Headers are short on screen so the channel table fits 1366px; the CSV spells them out.
 - **ROAS** (card and channel table) = gross ÷ ad spend, with gross counted only over the dates that
-  channel's ad spend covers.
+  channel's ad spend covers. Card and table Total are blended: gross from every channel, with ad spend or not.
 - **Product view** (below categories; `products.py`, owner's rules 15 Oct 2026): MRP and units from
   `Executive_Sales_Product`; names / categories from `Product_Master_New` (freebie and uncategorised
   products left out, as in the category table). Gross is shared out per date x channel x category so
