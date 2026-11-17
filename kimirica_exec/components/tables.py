@@ -206,22 +206,31 @@ def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, cmp_short: str, ex
                       _col_config(df, total_df, label, cmp_short, raw, pct_cols), f"tbl_{key_col}_{raw}")
 
 
-PRODUCT_COLS = ["Product", "MRP sales", "Gross sales", "Net sales", "Discount", "Units", "ASP", "MoM", "Share"]
+PRODUCT_COLS = ["Product", "itemcode_kimirica", "MRP sales", "Gross sales", "Net sales", "Discount", "Units", "ASP", "MoM", "Share"]
 CATEGORY_COLS = ["Category", "MRP sales", "Gross sales", "Net sales", "Discount", "Disc. chg", "Units",
                  "Units chg", "ASP", "MoM", "Share"]
 SHARE_PCT = {"Discount": False, "Disc. chg": True, "Units chg": True, "MoM": True, "Share": False}
 CHANNEL_PCT = {"Discount": False, "Disc. chg": True, "Units chg": True, "MoM": True, "Ach.": False}
+PRODUCT_NAME_MAX = 380  # px
+
+
+def _with_code(pt: pd.DataFrame) -> pd.DataFrame:
+    """The Kimirica item code, shown under its BigQuery column name."""
+    return pt.assign(itemcode_kimirica=pt["code"].astype(str))
 
 
 def product_table(pt: pd.DataFrame, raw: bool, cmp_short: str) -> None:
     """Category columns plus Units; every product, scrolling inside a fixed-height box."""
+    pt = _with_code(pt)
     df = pt[PRODUCT_COLS].reset_index(drop=True)
     sty = _styler(df, raw, SHARE_PCT)
     total_df = M.add_totals_row(pt, "Product")[PRODUCT_COLS].iloc[[-1]].reset_index(drop=True)
     rows = min(len(df), config.PRODUCT_VISIBLE_ROWS)
-    _table_with_total(df, sty, total_df, raw, SHARE_PCT, 1.0, _fit_height(rows),
-                      _col_config(df, total_df, "Product", cmp_short, raw, SHARE_PCT),
-                      f"cat_prod_{raw}")
+    cfg = _col_config(df, total_df, "Product", cmp_short, raw, SHARE_PCT)
+    # The longest names would push the table past a 1366px laptop; past this they end in "…".
+    cfg["Product"] = st.column_config.Column("Product", width=min(cfg["Product"]["width"], PRODUCT_NAME_MAX),
+                                             pinned=True)
+    _table_with_total(df, sty, total_df, raw, SHARE_PCT, 1.0, _fit_height(rows), cfg, f"cat_prod_{raw}")
 
 
 # --------------------------------------------------------------------------- #
@@ -268,7 +277,7 @@ def category_csv(ct: pd.DataFrame, cmp_short: str) -> bytes:
 
 
 def product_csv(pt: pd.DataFrame, cmp_short: str) -> bytes:
-    return _csv(pt, "Product", "Product", PRODUCT_COLS, cmp_short, SHARE_PCT)
+    return _csv(_with_code(pt), "Product", "Product", PRODUCT_COLS, cmp_short, SHARE_PCT)
 
 
 def category_table(ct: pd.DataFrame, raw: bool, cmp_short: str) -> None:
