@@ -20,6 +20,7 @@ st.set_page_config(
 import config  # noqa: E402
 import metrics as M  # noqa: E402
 import products as PR  # noqa: E402
+from aop_plan import projected_aop  # noqa: E402
 from bigquery import clear_caches, load_dashboard_data  # noqa: E402
 from components import charts, insights, kpi_cards, tables  # noqa: E402
 from components import theme as T  # noqa: E402
@@ -310,7 +311,8 @@ scope_channels = sel_channels  # empty = every channel, including any only prese
 aop = None if (sel_categories or by_product) else data.aop  # the AOP plan isn't split by category or product
 snap = M.kpi_snapshot(cd, ads, P, aop, scope_channels)
 tbl = M.channel_table(cd, P, "channel", aop, scope_channels, ads)
-snap_today = M.kpi_snapshot(cd_today, ads, PT, aop, scope_channels)
+snap_today = M.kpi_snapshot(cd_today, ads, PT, aop, scope_channels,
+                            None if aop is None else projected_aop())
 tbl_today = M.channel_table(cd_today, PT, "channel", aop, scope_channels)
 in_scope = sorted(set(cd["channel"]))
 

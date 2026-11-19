@@ -12,14 +12,21 @@ UAE_DISCOUNT_NOTE = "Amazon-UAE discount isn't shown."
 PRE_CANCEL_NOTE = "All figures are pre-cancellation and pre-returns."
 
 
-def _delta(value, label: str, neutral: bool = False, invert: bool = False) -> str:
+def _fmt_pp(v) -> str:
+    """A change in a rate, in percentage points: 18.1% -> 19.7% is +1.6pp."""
+    p = float(v) * 100
+    return (f"{p:+.1f}pp" if abs(p) >= 0.05 else "0.0pp").replace("-", "−")
+
+
+def _delta(value, label: str, neutral: bool = False, invert: bool = False, pp: bool = False) -> str:
     if value is None:
         return f'<div class="kpi-delta flat">—<span>{esc(label)}</span></div>'
     tiny = abs(value) < 0.0005
     good = value > 0 if not invert else value < 0
     cls = "flat" if (neutral or tiny) else ("up" if good else "down")
     arrow = "■" if tiny else "▲" if value > 0 else "▼"
-    return f'<div class="kpi-delta {cls}">{arrow} {esc(M.fmt_pct(value))} <span>{esc(label)}</span></div>'
+    shown = _fmt_pp(value) if pp else M.fmt_pct(value)
+    return f'<div class="kpi-delta {cls}">{arrow} {esc(shown)} <span>{esc(label)}</span></div>'
 
 
 def _card(label: str, value: str, delta_html: str, sub: str, extra_cls: str = "",
@@ -73,7 +80,7 @@ def render_kpis(s: dict, P: M.Periods, ads_available: bool, ads_note: str = "Not
         _card(f"Net sales (ex {gst} GST)", M.fmt_inr(cur["net"]), _delta(s["net_mom"], vs),
               f"{ref} {M.fmt_inr(prev['net'])}", full=_full(M.fmt_inr_full, cur["net"], prev["net"], ref)),
         _card("Discount", M.fmt_pct(cur["discount"], signed=False),
-              _delta(M.pct(cur["discount"], prev["discount"]), vs, invert=True),
+              _delta(s["disc_change"], vs, invert=True, pp=True),
               f"{ref} {M.fmt_pct(prev['discount'], signed=False)}",
               full=_full(_pct2, cur["discount"], prev["discount"], ref)),
         _card("Quantity", M.fmt_count(cur["qty"]), _delta(s["qty_mom"], vs),
@@ -89,17 +96,27 @@ def render_kpis(s: dict, P: M.Periods, ads_available: bool, ads_note: str = "Not
     st.markdown(f'<div class="kpi-grid">{"".join(cards)}</div>', unsafe_allow_html=True)
 
 
-def _bar(achieved_pct: float, projected_pct: float, achieved_text: str, projected_text: str) -> str:
+def _bar(achieved_pct: float, projected_pct: float, achieved_text: str, projected_text: str,
+         proj_aop_pct: float | None = None, proj_aop_text: str = "") -> str:
     a, pr = min(achieved_pct, 1.0) * 100, min(projected_pct, 1.0) * 100
+    mark = ""
+    if proj_aop_pct is not None:
+        m = min(proj_aop_pct, 1.0) * 100
+        # a tick on the bar, its label above it, kept inside the panel at either end
+        shift = "0" if m < 15 else "-100%" if m > 85 else "-50%"
+        mark = (f'<div class="pace-mark" style="left:{m:.1f}%"></div>'
+                f'<div class="pace-mark-label" style="left:{m:.1f}%;transform:translateX({shift})">'
+                f'{esc(proj_aop_text)}</div>')
     return (f'<div class="pace-bar">'
             f'<div class="pace-proj" style="width:{pr:.1f}%"></div>'
             f'<div class="pace-fill" style="width:{a:.1f}%"><span>{esc(achieved_text)}</span></div>'
+            f'{mark}'
             f'<div class="pace-proj-label" style="left:{pr:.1f}%">{esc(projected_text)}</div>'
             f'</div>')
 
 
-def _panel(title: str, period: str, target, achieved, ach, projection, projected_ach, pace,
-           estimated: bool) -> str:
+def _panel(title: str, period: str, target, achieved, ach, projection, projected_ach, rate_label: str,
+           rate, estimated: bool, proj_aop=None) -> str:
     if not target:
         return (f'<div class="pace"><div class="pace-top"><div class="pace-title">{esc(title)}</div>'
                 f'<div class="pace-meta">{esc(period)}</div></div>'
@@ -107,13 +124,16 @@ def _panel(title: str, period: str, target, achieved, ach, projection, projected
     bar = _bar(
         (achieved or 0) / target, (projection or 0) / target,
         f"{M.fmt_inr(achieved)}  {M.fmt_pct(ach, signed=False)}",
-        f"projected {M.fmt_inr(projection)}  {M.fmt_pct(projected_ach, signed=False)}",
+        f"Estimated landing {M.fmt_inr(projection)}  {M.fmt_pct(projected_ach, signed=False)}",
+        proj_aop / target if proj_aop else None,
+        f"Projected AOP {M.fmt_inr(proj_aop)}",
     )
     stats = [
         ("AOP", M.fmt_inr(target) + (" est." if estimated else "")),
+        ("Projected AOP", M.fmt_inr(proj_aop)),
         ("Achieved", M.fmt_inr(achieved)),
-        ("Projected", M.fmt_inr(projection)),
-        ("Pace", f"{M.fmt_inr(pace)}/day"),
+        ("Estimated landing", M.fmt_inr(projection)),
+        (rate_label, M.fmt_inr(rate)),
     ]
     stat_html = "".join(f'<div class="pace-stat"><div class="l">{esc(l)}</div><div class="v">{esc(v)}</div></div>'
                         for l, v in stats)
@@ -123,20 +143,21 @@ def _panel(title: str, period: str, target, achieved, ach, projection, projected
 
 
 def render_pacing(s: dict, P: M.Periods) -> None:
-    """Month and year pacing against AOP, on MRP sales. Projected = at the current pace."""
+    """Month and year pacing against AOP and projected AOP, on MRP sales. Estimated landing = at the
+    current runrate."""
     cur = s["cur"]
     if not s["month_target"] and not s["year_target"]:
         return
     month = _panel(
         "Current month trend", f"{P.as_of:%B %Y}, {P.days_left} days left",
         s["month_target"], s["month_achieved"], s["month_ach"],
-        s["target_projection"], s["projected_ach"], s["current_rr"],
-        s["month_target_estimated"],
+        s["target_projection"], s["projected_ach"], "Daily runrate", s["current_rr"],
+        s["month_target_estimated"], s.get("month_proj_aop"),
     )
     year = _panel(
         "Current FY trend", f"{P.year_label.replace(' to date', '')}, day {P.year_days_elapsed} of {P.year_days}",
         s["year_target"], s["year_actual"], s["year_ach"],
-        s["year_projection"], s["year_projected_ach"], s["year_rr"],
-        s["year_target_estimated"],
+        s["year_projection"], s["year_projected_ach"], "Monthly runrate", s.get("year_monthly_rr"),
+        s["year_target_estimated"], s.get("year_proj_aop"),
     )
     st.markdown(f'<div class="pace-wrap">{month}{year}</div>', unsafe_allow_html=True)

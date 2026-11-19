@@ -611,7 +611,8 @@ def _lagged_projection(w: pd.DataFrame, P: Periods, col: str = "gross_sales"):
 # KPI snapshot: MTD vs LMTD everywhere, plus year-to-date vs last year
 # =========================================================================== #
 def kpi_snapshot(cd: pd.DataFrame, ads: pd.DataFrame | None, P: Periods,
-                 aop: pd.DataFrame | None = None, channels: list[str] | None = None) -> dict:
+                 aop: pd.DataFrame | None = None, channels: list[str] | None = None,
+                 aop_projected: pd.DataFrame | None = None) -> dict:
     mtd_w = window(cd, P.cur_start, P.as_of)
     cur = block(mtd_w, P.cur_days, window(ads, P.cur_start, P.as_of))
     prev = block(window(cd, P.cmp_start, P.cmp_end), P.cmp_days, window(ads, P.cmp_start, P.cmp_end))
@@ -664,6 +665,10 @@ def kpi_snapshot(cd: pd.DataFrame, ads: pd.DataFrame | None, P: Periods,
     s["year_rr"] = ratio(s["year_actual"], P.year_days_elapsed)
     s["year_projection"] = s["year_rr"] * P.year_days if s["year_rr"] is not None else None
     s["year_projected_ach"] = ratio(s["year_projection"], s["year_target"])
+    # Projected AOP (the owner's re-forecast, aop_plan.projected_aop): the month's and the FY's
+    s["month_proj_aop"] = aop_for(aop_projected, channels or [], P.mtd_start, P.mtd_start)
+    s["year_proj_aop"] = aop_for(aop_projected, channels or [], fy_start=P.ytd_start.year)
+    s["year_monthly_rr"] = s["year_rr"] * P.year_days / 12 if s["year_rr"] is not None else None
     return s
 
 

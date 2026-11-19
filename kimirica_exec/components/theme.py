@@ -158,7 +158,10 @@ header[data-testid="stHeader"] button, header[data-testid="stHeader"] a {{ point
 .pace-top {{ display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }}
 .pace-title {{ font-size: 16px; font-weight: 600; color: {INK}; letter-spacing: -0.01em; }}
 .pace-meta {{ font-size: 12px; color: {MUTED}; }}
-.pace-bar {{ position: relative; height: 24px; background: {GRID}; border-radius: 6px; margin: 16px 0 14px; }}
+.pace-bar {{ position: relative; height: 24px; background: {GRID}; border-radius: 6px; margin: 34px 0 14px; }}
+.pace-mark {{ position: absolute; top: -4px; bottom: 0; width: 2px; margin-left: -1px; background: {INK}; z-index: 2; }}
+.pace-mark-label {{ position: absolute; top: -21px; font-size: 11.5px; color: {INK}; white-space: nowrap;
+  font-variant-numeric: tabular-nums; }}
 .pace-fill {{ position: absolute; left: 0; top: 0; bottom: 0; background: {ACCENT}; border-radius: 6px;
   display: flex; align-items: center; justify-content: flex-end; overflow: hidden; }}
 .pace-fill span {{ font-size: 11.5px; font-weight: 600; color: #FFFFFF; padding-right: 8px; white-space: nowrap;
@@ -167,7 +170,7 @@ header[data-testid="stHeader"] button, header[data-testid="stHeader"] a {{ point
   -45deg, {ACCENT_SOFT}, {ACCENT_SOFT} 4px, {STRIPE} 4px, {STRIPE} 8px); }}
 .pace-proj-label {{ position: absolute; top: 28px; transform: translateX(-100%); font-size: 11.5px;
   color: {MUTED}; white-space: nowrap; font-variant-numeric: tabular-nums; }}
-.pace-stats {{ display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 26px; }}
+.pace-stats {{ display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 26px; }}
 .pace-stat .l {{ font-size: 11.5px; color: {MUTED}; }}
 .pace-stat .v {{ font-size: 17px; font-weight: 600; color: {INK}; font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em; margin-top: 2px; }}

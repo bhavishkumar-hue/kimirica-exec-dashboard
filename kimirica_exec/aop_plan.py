@@ -63,3 +63,29 @@ def hardcoded_aop() -> pd.DataFrame:
         for d, v in zip(_MONTHS, values)
     ]
     return pd.DataFrame(rows)
+
+
+# Projected AOP (owner, Nov 2026): a re-forecast per channel from Jul 2026, in Rs. Months and
+# channels it doesn't cover (Apr-Jun, EBO(Stores)) keep the original AOP above.
+_PROJECTION_CSV = """Date,Amazon-VC,Nykaa,Tira,Blinkit,Swiggy,Zepto,FK-Minutes,Website,Amazon-SC,Amazon-UAE,Flipkart,Tata Cliq_Others,Myntra,Smytten
+01-07-2026,19500000,15000000,4200000,23800000,4700000,3800000,100000,18500000,700000,800000,800000,100000,1100000,100000
+01-08-2026,28000000,15000000,5400000,45000000,13000000,15000000,500000,29000000,800000,1000000,1000000,100000,2000000,100000
+01-09-2026,25000000,15000000,5000000,27000000,6000000,6000000,1000000,30000000,800000,1500000,1530000,250000,2200000,800000
+01-10-2026,30000000,15000000,6000000,52000000,8000000,10000000,800000,40000000,1110000,1500000,1527059,416471,2082353,277647
+01-11-2026,25000000,20000000,5000000,45000000,9000000,9000000,1000000,30010311,800000,1500000,2010924,720000,1800000,0
+01-12-2026,35000000,17000000,7000000,60000000,12000000,12000000,1000000,33011342,800000,1800000,2010924,720000,1800000,4320000
+01-01-2027,35000000,17000000,6000000,45000000,6500000,6500000,800000,49517012,800000,1500000,2010924,720000,2160000,5040000
+01-02-2027,45000000,24000000,7000000,60000000,18000000,18000000,1500000,39613610,800000,1800000,2010924,720000,2700000,6120000
+01-03-2027,35000000,16000000,6000000,45000000,7000000,7000000,800000,30898616,800000,1500000,2010924,720000,2160000,4660000"""
+
+
+def projected_aop() -> pd.DataFrame:
+    """Projected AOP in the same shape as hardcoded_aop(): the re-forecast where given, AOP elsewhere."""
+    import io
+    wide = pd.read_csv(io.StringIO(_PROJECTION_CSV))
+    wide["date"] = pd.to_datetime(wide.pop("Date"), format="%d-%m-%Y")
+    proj = wide.melt(id_vars="date", var_name="channel", value_name="proj")
+    out = hardcoded_aop().merge(proj, on=["date", "channel"], how="outer")
+    out["fy_start"] = FY_START
+    out["aop"] = out["proj"].where(out["proj"].notna(), out["aop"]).astype(float)
+    return out.drop(columns="proj")

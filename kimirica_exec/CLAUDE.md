@@ -157,7 +157,7 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
 ## Design preferences (owner is strict about these)
 
 - Minimal and clean. **No taglines or subtitles under section headings** (`T.section()`), no
-  explanatory footnotes, no `*`/`†` markers, no "pp" (use plain % change). The one exception is the
+  explanatory footnotes, no `*`/`†` markers, no "pp" except the Discount card's change (owner, Nov 2026: shown in pp). The one exception is the
   main header itself -- see below. The only note allowed under the cards is exactly
   "AOV is ASP for channels where order data isn't available. Amazon-UAE discount isn't shown." --
   kept deliberately short (owner, Oct 2026); no data-coverage notes are appended to it any more
@@ -182,15 +182,17 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   whole page sat washed out that long (owner called it a glitch). Now numbers swap in place.
 - All KPI cards the same size: 3 x 3 grid (MRP, gross, net / discount, quantity, AOV / ASP, ad spends, ROAS).
 - Pacing ("Current month trend" / "Current FY trend"): month and year panels side by side; AOP, achieved,
-  projected, pace; figures on the bar. Always describes the latest loaded month/FY to date, regardless of
+  Projected AOP, Estimated landing (was "Projected"), Daily runrate (month) / Monthly runrate (FY) (was
+  "Pace x/day"); figures on the bar. Projected AOP = the owner's re-forecast in `aop_plan._PROJECTION_CSV`
+  (Jul 2026 on), the original AOP for months/channels it doesn't cover (Apr-Jun, EBO); a black tick on
+  the bar with its label above. Always describes the latest loaded month/FY to date, regardless of
   the View/date filters (same for Highlights). **No "Needs attention" section** -- owner had it removed
   (Sep 2026); `metrics.watchlist()` / `insights.watchlist()` still exist but nothing calls them.
 - Monthly trend: Month view January to the selected month, Financial year view April to it, Custom
   every month the range touches; bars, last year's same months as faint ghost bars; tooltip shows only value, last year, YoY, MoM.
 - Section order: cards, pacing, channel table, category table, what-moved + AOP vs actual,
   monthly trend, highlights.
-- Pacing bar has no vertical "today" tick (owner had it removed, Sep 2026) -- just the achieved/
-  projected fill and the AOP/Achieved/Projected/Pace stats underneath.
+- Pacing bar has no vertical "today" tick (owner had it removed, Sep 2026); the only tick is Projected AOP.
 - Channel performance table has an Ad spend column (money-formatted, hidden if the channel/group has
   no ad spend at all). Owner now enters Myntra/Nykaa/Tira's monthly ad spend directly into
   `Executive_Spends_Master` -- no hardcoded override in config.py (removed Sep 2026).
