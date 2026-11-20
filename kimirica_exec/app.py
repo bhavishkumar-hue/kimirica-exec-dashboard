@@ -310,9 +310,10 @@ if sel_categories or by_product:
 scope_channels = sel_channels  # empty = every channel, including any only present in the AOP tables
 aop = None if (sel_categories or by_product) else data.aop  # the AOP plan isn't split by category or product
 snap = M.kpi_snapshot(cd, ads, P, aop, scope_channels)
-tbl = M.channel_table(cd, P, "channel", aop, scope_channels, ads)
+aop_proj = None if aop is None else projected_aop()
+tbl = M.channel_table(cd, P, "channel", aop, scope_channels, ads, aop_proj)
 snap_today = M.kpi_snapshot(cd_today, ads, PT, aop, scope_channels,
-                            None if aop is None else projected_aop())
+                            aop_proj)
 tbl_today = M.channel_table(cd_today, PT, "channel", aop, scope_channels)
 in_scope = sorted(set(cd["channel"]))
 
@@ -351,7 +352,7 @@ with st.container(key="panel_channels"):
         dl_channels = c3  # the column itself, not st.empty(): an empty() slot is cleared at the start of
                           # every rerun, so the header row lost the button and shrank 8px for a moment
     key_col = "channel" if view == "Channels" else "group"
-    view_tbl = tbl if key_col == "channel" else M.channel_table(cd, P, "group", aop, scope_channels, ads)
+    view_tbl = tbl if key_col == "channel" else M.channel_table(cd, P, "group", aop, scope_channels, ads, aop_proj)
     if view_tbl.empty:
         empty("No sales for this selection.")
     else:

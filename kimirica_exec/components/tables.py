@@ -27,7 +27,7 @@ import config
 import metrics as M
 from components import theme as T
 
-MONEY = ["MRP sales", "Gross sales", "Net sales", "Target", "Ad spend"]
+MONEY = ["MRP sales", "Gross sales", "Net sales", "Target", "M. target", "Ad spend"]
 PRICES = ["AOV", "ASP"]
 ROW_HEIGHT = 30  # explicit row_height= so a long channel list fits without a page-length table
 HEADER_HEIGHT = 36  # the grid's own header overlay height -- fixed regardless of ROW_HEIGHT (measured
@@ -118,13 +118,15 @@ def _help(cmp_short: str) -> dict:
         "MoM": f"{basis} growth vs {cmp_short}",
         "Target": "AOP for the days passed so far (each month pro-rated by days elapsed)",
         "Ach.": "Achieved ÷ AOP to date, over the same days. Green at 100% or more",
+        "M. target": "The month's target (projected AOP); for a longer period, its months added up",
+        "M. ach.": "Achieved so far ÷ monthly target. Green when ahead of the share of the month passed",
         "Share": f"Share of MTD {M.metric_lc(config.GROWTH_METRIC)} in this view",
     }
 
 
 # Approximate rendered character widths for the grid's canvas font, measured off screenshots.
 _VALUE_CH, _HEADER_CH, _BOLD_CH = 7.2, 6.6, 7.3
-_CELL_PAD, _HEADER_PAD, _MIN_WIDTH = 20, 27, 60
+_CELL_PAD, _HEADER_PAD, _MIN_WIDTH = 12, 10, 48
 
 
 def _col_widths(df: pd.DataFrame, total_df: pd.DataFrame, labels: dict, raw: bool,
@@ -152,7 +154,7 @@ def _labels(cols: list[str], first_label: str, cmp_short: str, short: bool = Fal
     # On screen the change columns sit right after Discount / Units, so "vs LMTD" is enough and
     # keeps the channel table inside a 1366px laptop; the CSV spells them out.
     units, disc = (f"vs {cmp_short}",) * 2 if short else (f"Units vs {cmp_short}", f"Discount vs {cmp_short}")
-    labels = {c: {"MoM": f"Growth vs {cmp_short}", "Units chg": units, "Disc. chg": disc, "Target": "AOP to date", "Ach.": "AOP ach."}.get(c, c)
+    labels = {c: {"MoM": f"Growth vs {cmp_short}", "Units chg": units, "Disc. chg": disc, "Target": "AOP to date", "Ach.": "AOP ach.", "M. target": "Monthly target", "M. ach.": "% achieved"}.get(c, c)
               for c in cols}
     labels[cols[0]] = first_label
     return labels
@@ -180,11 +182,13 @@ def _fit_height(n_rows: int) -> int:
 
 def _table_with_total(df: pd.DataFrame, sty, total_df: pd.DataFrame, raw: bool,
                       pct_cols: dict[str, bool], expected: float, height: int,
-                      col_config: dict, key: str) -> None:
+                      col_config: dict, key: str, restyle_total=None) -> None:
     # gap="xxsmall": theme.py forces gap:4px !important on these specific wrapper containers (a
     # broader panel_* rule was overriding whatever gap= said here -- see the comment there), so the
     # second dataframe sits right against the first with no visible page-section-sized gap.
     total_sty = _styler(total_df, raw, pct_cols, expected).set_properties(**{"font-weight": "700"})
+    if restyle_total is not None:
+        total_sty = restyle_total(total_sty)
     with st.container(key=f"{key}_wrap", gap="xxsmall"):
         st.dataframe(sty, hide_index=True, width="stretch", placeholder="—", row_height=ROW_HEIGHT,
                     height=height, column_config=col_config, key=key)
@@ -203,16 +207,31 @@ def channel_table(tbl: pd.DataFrame, key_col: str, raw: bool, cmp_short: str, ex
     df = tbl[cols].reset_index(drop=True)
     pct_cols = CHANNEL_PCT
     sty = _styler(df, raw, pct_cols, expected)
-    total_df = M.add_totals_row(tbl, key_col)[cols].iloc[[-1]].reset_index(drop=True)
+    total_full = M.add_totals_row(tbl, key_col).iloc[[-1]].reset_index(drop=True)
+    total_df = total_full[cols]
+    restyle_total = None
+    if "M. ach." in cols:
+        sty = _restyle_month_ach(sty, tbl.reset_index(drop=True))
+        restyle_total = lambda s: _restyle_month_ach(s, total_full)  # noqa: E731
     _table_with_total(df, sty, total_df, raw, pct_cols, expected, _fit_height(len(df)),
-                      _col_config(df, total_df, label, cmp_short, raw, pct_cols), f"tbl_{key_col}_{raw}")
+                      _col_config(df, total_df, label, cmp_short, raw, pct_cols), f"tbl_{key_col}_{raw}",
+                      restyle_total)
+
+
+def _restyle_month_ach(sty, src: pd.DataFrame):
+    """% achieved of the monthly target, coloured against the share of the target's days passed for
+    that row (its target to date ÷ its full target), not against 100%."""
+    exp = (src["_mt_td"] / src["M. target"]).reset_index(drop=True)
+    return sty.apply(lambda col: [_ach_style_for(e)(v) if not M.is_na(e) else "" for v, e in zip(col, exp)],
+                     subset=["M. ach."])
 
 
 PRODUCT_COLS = ["Product", "itemcode_kimirica", "MRP sales", "Gross sales", "Net sales", "Discount", "Units", "ASP", "MoM", "Share"]
 CATEGORY_COLS = ["Category", "MRP sales", "Gross sales", "Net sales", "Discount", "Disc. chg", "Units",
                  "Units chg", "ASP", "MoM", "Share"]
 SHARE_PCT = {"Discount": False, "Disc. chg": True, "Units chg": True, "MoM": True, "Share": False}
-CHANNEL_PCT = {"Discount": False, "Disc. chg": True, "Units chg": True, "MoM": True, "Ach.": False}
+CHANNEL_PCT = {"Discount": False, "Disc. chg": True, "Units chg": True, "MoM": True, "Ach.": False,
+               "M. ach.": False}
 PRODUCT_NAME_MAX = 380  # px
 
 
@@ -262,9 +281,11 @@ def _csv(tbl: pd.DataFrame, label_col: str, first_label: str, cols: list[str], c
 def _channel_cols(tbl: pd.DataFrame, key_col: str) -> list[str]:
     cols = [key_col, "MRP sales", "Gross sales", "Net sales", "Discount", "Disc. chg", "Units", "Units chg",
             "AOV", "ASP",
-            "Ad spend", "ROAS", "MoM", "Target", "Ach."]
+            "Ad spend", "ROAS", "MoM", "Target", "Ach.", "M. target", "M. ach."]
     if tbl["Target"].isna().all():
         cols = [c for c in cols if c not in ("Target", "Ach.")]
+    if "M. target" not in tbl or tbl["M. target"].isna().all():
+        cols = [c for c in cols if c not in ("M. target", "M. ach.")]
     if tbl["Ad spend"].isna().all():
         cols = [c for c in cols if c not in ("Ad spend", "ROAS")]
     return cols

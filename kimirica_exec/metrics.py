@@ -785,6 +785,11 @@ def add_totals_row(out: pd.DataFrame, label_col: str) -> pd.DataFrame:
         "ROAS": ratio(s("_gross_ad_all"), s("Ad spend")),
         "Units": s("Units"),
     }
+    if "M. target" in out:
+        mt = s("M. target")
+        total["M. target"] = mt
+        total["M. ach."] = ratio(out["M. ach."].mul(out["M. target"]).sum(min_count=1), mt)             if out["M. target"].notna().any() else None
+        total["_mt_td"] = s("_mt_td")
     if "Target" in out:
         target = s("Target")
         total["Target"] = target
@@ -833,7 +838,7 @@ def _gross_over_all_ad_dates(cd: pd.DataFrame, ads: pd.DataFrame | None, key: st
 
 def channel_table(cd: pd.DataFrame, P: Periods, key: str = "channel",
                   aop: pd.DataFrame | None = None, channels: list[str] | None = None,
-                  ads: pd.DataFrame | None = None) -> pd.DataFrame:
+                  ads: pd.DataFrame | None = None, aop_projected: pd.DataFrame | None = None) -> pd.DataFrame:
     mtd = _grouped(window(cd, P.cur_start, P.as_of), key)
     lmtd = _grouped(window(cd, P.cmp_start, P.cmp_end), key)
     plan = aop_for(aop, channels or [], P.aop_start, P.mtd_start, by=key)
@@ -860,6 +865,15 @@ def channel_table(cd: pd.DataFrame, P: Periods, key: str = "channel",
         achieved = window(cd, P.aop_start, P.as_of).groupby(key)["ach_metric"].sum(min_count=1).reindex(idx)
         out["Target"] = aop_to_date(aop, channels or [], P, by=key).reindex(idx)
         out["Ach."] = _ratio_col(achieved, out["Target"])
+        if aop_projected is not None:
+            # Monthly target (owner, Nov 2026) = the projected AOP (aop_plan.projected_aop) for the
+            # period's months in full; % achieved = achieved so far against it. _mt_td is the same
+            # target for the days passed, so the colour can be judged against time elapsed.
+            mt = aop_for(aop_projected, channels or [], P.aop_start, P.mtd_start, by=key)
+            if mt is not None:
+                out["M. target"] = mt.reindex(idx)
+                out["M. ach."] = _ratio_col(achieved, out["M. target"])
+                out["_mt_td"] = aop_to_date(aop_projected, channels or [], P, by=key).reindex(idx)
     else:
         out["Target"] = mtd["target_sales"]
         out["Ach."] = _ratio_col(mtd["t_act"], mtd["target_sales"])

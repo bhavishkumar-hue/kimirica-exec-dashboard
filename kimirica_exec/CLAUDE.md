@@ -108,6 +108,10 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   last day with MRP sales (Flipkart a few days behind, Tira 0 days before its monthly upload),
   coloured against 100% (`metrics.aop_to_date`, `Periods.last_dates`). Only the month / FY pacing
   panels use the full-period AOP with projected and pace.
+- **Monthly target / % achieved** (channel table, after AOP ach.; owner, Nov 2026): Monthly target = projected AOP
+  (`aop_plan.projected_aop`) for the period's months in full; % achieved = achieved so far ÷ it, coloured against
+  the share of the target's days passed for that row (`_mt_td`), not against 100%. Column padding was trimmed
+  (`_CELL_PAD, _HEADER_PAD, _MIN_WIDTH = 12, 10, 48`) so the table still fits 1366px.
 - **Units** (channel, category, product tables) = quantity sold in the period. Channel and category tables also show
   units as % change and discount as a pp change vs the comparison period ("vs LMTD" after Discount and Units; a rising
   discount is red). Headers are short on screen so the channel table fits 1366px; the CSV spells them out.
