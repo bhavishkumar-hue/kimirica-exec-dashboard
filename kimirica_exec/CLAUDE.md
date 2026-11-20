@@ -109,7 +109,7 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   coloured against 100% (`metrics.aop_to_date`, `Periods.last_dates`). Only the month / FY pacing
   panels use the full-period AOP with projected and pace.
 - **Units** (channel, category, product tables) = quantity sold in the period. Channel and category tables also show
-  units and discount as plain % change vs the comparison period ("vs LMTD" after Discount and Units; a rising
+  units as % change and discount as a pp change vs the comparison period ("vs LMTD" after Discount and Units; a rising
   discount is red). Headers are short on screen so the channel table fits 1366px; the CSV spells them out.
 - **ROAS** (card and channel table) = gross ÷ ad spend, with gross counted only over the dates that
   channel's ad spend covers. Card and table Total are blended: gross from every channel, with ad spend or not.
@@ -157,7 +157,7 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
 ## Design preferences (owner is strict about these)
 
 - Minimal and clean. **No taglines or subtitles under section headings** (`T.section()`), no
-  explanatory footnotes, no `*`/`†` markers, no "pp" except the Discount card's change (owner, Nov 2026: shown in pp). The one exception is the
+  explanatory footnotes, no `*`/`†` markers, no "pp" except discount changes (Discount card and the tables' discount "vs LMTD"; owner, Nov 2026). The one exception is the
   main header itself -- see below. The only note allowed under the cards is exactly
   "AOV is ASP for channels where order data isn't available. Amazon-UAE discount isn't shown." --
   kept deliberately short (owner, Oct 2026); no data-coverage notes are appended to it any more

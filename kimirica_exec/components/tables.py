@@ -80,6 +80,8 @@ def _formatters(df: pd.DataFrame, raw: bool, pct_cols: dict[str, bool]) -> dict:
     fmt = {c: money_fmt for c in MONEY if c in df}
     fmt.update({c: M.fmt_price for c in PRICES if c in df})
     fmt.update({c: _pct(s) for c, s in pct_cols.items() if c in df})
+    if "Disc. chg" in df:
+        fmt["Disc. chg"] = M.fmt_pp  # percentage points, like the Discount card
     if "ROAS" in df:
         fmt["ROAS"] = M.fmt_x
     if "Units" in df:
@@ -112,7 +114,7 @@ def _help(cmp_short: str) -> dict:
         "ROAS": "Gross sales ÷ ad spend, over the dates ad spend covers. Total: all channels' gross, as on the card",
         "Units": "Units sold",
         "Units chg": f"Units sold vs {cmp_short}",
-        "Disc. chg": f"Change in discount % vs {cmp_short}",
+        "Disc. chg": f"Change in discount vs {cmp_short}, in percentage points",
         "MoM": f"{basis} growth vs {cmp_short}",
         "Target": "AOP for the days passed so far (each month pro-rated by days elapsed)",
         "Ach.": "Achieved ÷ AOP to date, over the same days. Green at 100% or more",
@@ -245,8 +247,9 @@ def _csv(tbl: pd.DataFrame, label_col: str, first_label: str, cols: list[str], c
         v = full[c]
         if c in pct_cols:
             num = pd.to_numeric(v, errors="coerce")
-            out[f"{labels[c]} (%)"] = np.where(np.isinf(num), NEW, (num * 100).round(1).astype(object))
-            out[f"{labels[c]} (%)"] = out[f"{labels[c]} (%)"].where(num.notna(), None)
+            name = f"{labels[c]} ({'pp' if c == 'Disc. chg' else '%'})"
+            out[name] = np.where(np.isinf(num), NEW, (num * 100).round(1).astype(object))
+            out[name] = out[name].where(num.notna(), None)
         elif c == "ROAS":
             out[labels[c]] = pd.to_numeric(v, errors="coerce").round(2)
         elif c in MONEY or c in PRICES or c == "Units":

@@ -117,6 +117,14 @@ def fmt_count_full(v) -> str:
     return "—" if is_na(v) else _indian_group(int(round(float(v))))
 
 
+def fmt_pp(v) -> str:
+    """A change in a rate, in percentage points: 18.1% -> 19.7% is +1.6pp."""
+    if is_na(v):
+        return "—"
+    p = float(v) * 100
+    return (f"{p:+.1f}pp" if abs(p) >= 0.05 else "0.0pp").replace("-", "−")
+
+
 def fmt_pct(v, signed: bool = True) -> str:
     if is_na(v):
         return "—"
@@ -706,7 +714,8 @@ def _common_columns(out: pd.DataFrame, mtd: pd.DataFrame, lmtd: pd.DataFrame) ->
     out["Net sales"] = mtd["net_sales"]
     out["Discount"] = 1 - _ratio_col(mtd["gross_for_discount"], mtd["mrp_sales"])
     # Discount and units vs the comparison period, as plain % change (like the cards)
-    out["Disc. chg"] = _vpct(out["Discount"], 1 - _ratio_col(lmtd["gross_for_discount"], lmtd["mrp_sales"]))
+    # change in discount in percentage points (owner, Nov 2026), not a relative % change
+    out["Disc. chg"] = out["Discount"] - (1 - _ratio_col(lmtd["gross_for_discount"], lmtd["mrp_sales"]))
     out["Units"] = mtd["quantity"]
     out["Units chg"] = _vpct(mtd["quantity"], lmtd["quantity"])
     out["AOV"] = _ratio_col(mtd["aov_num"], mtd["aov_den"])
@@ -761,7 +770,7 @@ def add_totals_row(out: pd.DataFrame, label_col: str) -> pd.DataFrame:
         label_col: TOTAL_LABEL,
         "MRP sales": mrp, "Gross sales": gross, "Net sales": s("Net sales"),
         "Discount": disc,
-        "Disc. chg": pct(disc, p_disc),
+        "Disc. chg": np.nan if is_na(disc) or is_na(p_disc) else disc - p_disc,
         "Units chg": pct(s("Units"), s("_lmtd_quantity")),
         "AOV": ratio(s("_aov_num"), s("_aov_den")),
         "ASP": ratio(gross_asp, s("_quantity")),

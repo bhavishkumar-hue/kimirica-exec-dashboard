@@ -12,12 +12,6 @@ UAE_DISCOUNT_NOTE = "Amazon-UAE discount isn't shown."
 PRE_CANCEL_NOTE = "All figures are pre-cancellation and pre-returns."
 
 
-def _fmt_pp(v) -> str:
-    """A change in a rate, in percentage points: 18.1% -> 19.7% is +1.6pp."""
-    p = float(v) * 100
-    return (f"{p:+.1f}pp" if abs(p) >= 0.05 else "0.0pp").replace("-", "−")
-
-
 def _delta(value, label: str, neutral: bool = False, invert: bool = False, pp: bool = False) -> str:
     if value is None:
         return f'<div class="kpi-delta flat">—<span>{esc(label)}</span></div>'
@@ -25,7 +19,7 @@ def _delta(value, label: str, neutral: bool = False, invert: bool = False, pp: b
     good = value > 0 if not invert else value < 0
     cls = "flat" if (neutral or tiny) else ("up" if good else "down")
     arrow = "■" if tiny else "▲" if value > 0 else "▼"
-    shown = _fmt_pp(value) if pp else M.fmt_pct(value)
+    shown = M.fmt_pp(value) if pp else M.fmt_pct(value)
     return f'<div class="kpi-delta {cls}">{arrow} {esc(shown)} <span>{esc(label)}</span></div>'
 
 
