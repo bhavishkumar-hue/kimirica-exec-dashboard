@@ -183,7 +183,7 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   previous run while a rerun is in progress; a Refresh reloads BigQuery for several seconds, so the
   whole page sat washed out that long (owner called it a glitch). Now numbers swap in place.
 - All KPI cards the same size: 3 x 3 grid (MRP, gross, net / discount, quantity, AOV / ASP, ad spends, ROAS).
-- Pacing ("Current month trend" / "Current FY trend"): month and year panels side by side; AOP, achieved,
+- Pacing ("Current month trend" / "Current FY trend"): month and year panels side by side. Labels (owner, Nov 2026): AOP Target, Monthly / Yearly Target (= projected AOP), Achieved so Far, Expected Monthly / Yearly Ach. (= estimated landing), Daily / Monthly runrate. Earlier names: AOP, achieved,
   Projected AOP, Estimated landing (was "Projected"), Daily runrate (month) / Monthly runrate (FY) (was
   "Pace x/day"); figures on the bar. Projected AOP = the owner's re-forecast in `aop_plan._PROJECTION_CSV`
   (Jul 2026 on), the original AOP for months/channels it doesn't cover (Apr-Jun, EBO); a black tick on

@@ -110,7 +110,9 @@ def _bar(achieved_pct: float, projected_pct: float, achieved_text: str, projecte
 
 
 def _panel(title: str, period: str, target, achieved, ach, projection, projected_ach, rate_label: str,
-           rate, estimated: bool, proj_aop=None) -> str:
+           rate, estimated: bool, proj_aop=None, scope: str = "Monthly") -> str:
+    # owner's names (Nov 2026): the projected AOP is the "Monthly / Yearly Target", the estimated
+    # landing is "Expected Monthly / Yearly Ach."
     if not target:
         return (f'<div class="pace"><div class="pace-top"><div class="pace-title">{esc(title)}</div>'
                 f'<div class="pace-meta">{esc(period)}</div></div>'
@@ -118,15 +120,15 @@ def _panel(title: str, period: str, target, achieved, ach, projection, projected
     bar = _bar(
         (achieved or 0) / target, (projection or 0) / target,
         f"{M.fmt_inr(achieved)}  {M.fmt_pct(ach, signed=False)}",
-        f"Estimated landing {M.fmt_inr(projection)}  {M.fmt_pct(projected_ach, signed=False)}",
+        f"Expected {scope} Ach. {M.fmt_inr(projection)}  {M.fmt_pct(projected_ach, signed=False)}",
         proj_aop / target if proj_aop else None,
-        f"Projected AOP {M.fmt_inr(proj_aop)}",
+        f"{scope} Target {M.fmt_inr(proj_aop)}",
     )
     stats = [
-        ("AOP", M.fmt_inr(target) + (" est." if estimated else "")),
-        ("Projected AOP", M.fmt_inr(proj_aop)),
-        ("Achieved", M.fmt_inr(achieved)),
-        ("Estimated landing", M.fmt_inr(projection)),
+        ("AOP Target", M.fmt_inr(target) + (" est." if estimated else "")),
+        (f"{scope} Target", M.fmt_inr(proj_aop)),
+        ("Achieved so Far", M.fmt_inr(achieved)),
+        (f"Expected {scope} Ach.", M.fmt_inr(projection)),
         (rate_label, M.fmt_inr(rate)),
     ]
     stat_html = "".join(f'<div class="pace-stat"><div class="l">{esc(l)}</div><div class="v">{esc(v)}</div></div>'
@@ -146,12 +148,12 @@ def render_pacing(s: dict, P: M.Periods) -> None:
         "Current month trend", f"{P.as_of:%B %Y}, {P.days_left} days left",
         s["month_target"], s["month_achieved"], s["month_ach"],
         s["target_projection"], s["projected_ach"], "Daily runrate", s["current_rr"],
-        s["month_target_estimated"], s.get("month_proj_aop"),
+        s["month_target_estimated"], s.get("month_proj_aop"), "Monthly",
     )
     year = _panel(
         "Current FY trend", f"{P.year_label.replace(' to date', '')}, day {P.year_days_elapsed} of {P.year_days}",
         s["year_target"], s["year_actual"], s["year_ach"],
         s["year_projection"], s["year_projected_ach"], "Monthly runrate", s.get("year_monthly_rr"),
-        s["year_target_estimated"], s.get("year_proj_aop"),
+        s["year_target_estimated"], s.get("year_proj_aop"), "Yearly",
     )
     st.markdown(f'<div class="pace-wrap">{month}{year}</div>', unsafe_allow_html=True)
