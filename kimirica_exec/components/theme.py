@@ -210,7 +210,7 @@ header[data-testid="stHeader"] button, header[data-testid="stHeader"] a {{ point
 /* Column edges can't be dragged (see _FREEZE_JS); keep the resize cursor from suggesting otherwise. */
 [class*="st-key-tbl_"][class*="_wrap"] .dvn-scroller[style*="col-resize"],
 [class*="st-key-cat_"][class*="_wrap"] .dvn-scroller[style*="col-resize"] {{ cursor: pointer !important; }}
-.st-key-k_colfreeze {{ display: none; }}
+.st-key-k_colfreeze, .st-key-k_authcookie {{ display: none; }}
 /* The Total row is a second st.dataframe stacked right under the sortable one, using the exact
    same column_config -- see the long comment in components/tables.py for why (short version:
    st.dataframe's column-sort can't exclude a single row, and its canvas-rendered grid has no

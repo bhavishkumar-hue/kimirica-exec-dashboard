@@ -196,6 +196,14 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
     page state (`STATE` = data version + filters + `Periods`). Anything new a section depends on must
     be part of its key.
   - The product table works on just the period's and comparison's dates (verified identical).
+  - Same element layout on every run: the password gate's slot, the login-cookie slot and the
+    first-load spinner's slot are drawn on every run, used or not. Streamlit matches elements by
+    position, so when only the login run had them, the first filter change after login rebuilt the
+    whole page (the "first filter glitch"). Don't add elements that only appear on some runs above
+    the page content.
+  - Stay signed in: a signed `k_auth` cookie (expiry + HMAC keyed by APP_PASSWORD, no password in it)
+    keeps a browser logged in for 30 days across dropped connections / idle tabs. Changing
+    APP_PASSWORD signs everyone out.
   - Loading sign: thin bar + "Updating…" pill while a rerun runs (`.k-loading`, theme.py), shown after
     0.3 s so quick reruns don't flash.
 - `[data-stale="true"]` is forced to full opacity in theme.py. Streamlit fades every element from the

@@ -5,7 +5,9 @@ Run:  python -m streamlit run app.py
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import hmac
+import time
 
 import pandas as pd
 import streamlit as st
@@ -28,13 +30,52 @@ from components import theme as T  # noqa: E402
 T.inject_css()
 
 
+# Stay signed in (owner, Nov 2026: the app kept going back to the password page after some idle time).
+# The login lived only in st.session_state, which is lost whenever the browser's connection to the app
+# drops (idle tab, laptop sleep, Cloud reconnect). A signed cookie now remembers it for AUTH_DAYS per
+# browser. It holds no password: an expiry and an HMAC keyed by the password, so changing
+# APP_PASSWORD in secrets signs everyone out.
+AUTH_COOKIE, AUTH_DAYS = "k_auth", 30
+
+
+def _auth_sig(expiry: int) -> str:
+    return hmac.new(config.APP_PASSWORD.encode(), f"kimirica-dash|{expiry}".encode(), hashlib.sha256).hexdigest()
+
+
+def _cookie_ok() -> bool:
+    try:
+        raw = st.context.cookies.get(AUTH_COOKIE) or ""
+        expiry, sig = raw.split(".", 1)
+        return int(expiry) > time.time() and hmac.compare_digest(sig, _auth_sig(int(expiry)))
+    except Exception:
+        return False
+
+
+def _set_auth_cookie(slot) -> None:
+    expiry = int(time.time()) + AUTH_DAYS * 86400
+    value = f"{expiry}.{_auth_sig(expiry)}"
+    with slot:   # hidden (theme.py); the script only needs to run once
+        st.html(f"""<script>document.cookie = "{AUTH_COOKIE}={value}; max-age={AUTH_DAYS * 86400}; path=/; "
+                + "SameSite=Lax" + (location.protocol === "https:" ? "; Secure" : "");</script>""",
+                unsafe_allow_javascript=True)
+
+
 def require_access() -> None:
     """Sharing has to stay "public" at the Streamlit Cloud level, or the scheduled keep-alive ping
     (a plain HTTP request with no Google login) never gets past Streamlit's own viewer-list gate to
     reach the app at all -- it would keep sleeping regardless of the ping. So the gate lives inside
     the app instead: one shared password, kept in secrets as APP_PASSWORD. Blank means no gate
     (local dev, or before it's set in Streamlit Cloud secrets)."""
+    # Both slots are drawn on EVERY run, used or not. Streamlit matches elements between runs by
+    # position: when only the login run had them, every element after them moved by one on the next
+    # run, so the first filter change after logging in rebuilt the whole page (owner: "choosing the
+    # first filter still causes a glitch").
+    gate = st.empty()
+    cookie_slot = st.container(key="k_authcookie")
     if not config.APP_PASSWORD or st.session_state.get("authed"):
+        return
+    if _cookie_ok():
+        st.session_state["authed"] = True
         return
     # st.rerun() looked like the obvious way to move on after a correct password, but it aborts
     # the CURRENT run before its updates take effect -- Streamlit then shows this whole screen,
@@ -43,7 +84,6 @@ def require_access() -> None:
     # under the "Loading sales data" spinner). Clearing the gate and falling through to `return`
     # instead lets the SAME run continue straight into the rest of app.py -- no second run, no
     # stale screen to show while one loads.
-    gate = st.empty()
     with gate.container():
         T.header()
         _, mid, _ = st.columns([1, 1.1, 1])
@@ -59,6 +99,7 @@ def require_access() -> None:
     if not st.session_state.get("authed"):
         st.stop()
     gate.empty()
+    _set_auth_cookie(cookie_slot)
 
 
 require_access()
@@ -141,14 +182,16 @@ if st.query_params.get("refresh"):
     st.cache_data.clear()
     del st.query_params["refresh"]
 
+spin_slot = st.empty()   # drawn every run (see require_access): keeps element positions identical
 try:
     # The spinner only on a session's first load (and after Refresh): on a filter change the data is
     # already cached, and a spinner flashing in at the top pushed the whole page down for a moment.
     if st.session_state.get("data_loaded"):
         data = load_dashboard_data()
     else:
-        with st.spinner("Loading sales data"):
+        with spin_slot.container(), st.spinner("Loading sales data"):
             data = load_dashboard_data()
+        spin_slot.empty()
         st.session_state["data_loaded"] = True
 except Exception as exc:  # actionable message instead of a stack trace
     st.error(
