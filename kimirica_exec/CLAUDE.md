@@ -130,6 +130,8 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   products and works exactly like the Products filter (intersected with it if both are set).
   Placeholders (None, Not Applicable) count as not set; case-only spelling variants are merged.
   Each list (and Products) only offers values that fit the categories and other picks.
+- **Product table's own category filter** (multi-select in its header, next to search; owner, Nov 2026):
+  narrows only the product table (Share, Total and CSV follow it); the rest of the page keeps the top filters.
 - **Export:** channel, category and product tables each have a CSV button (whole table + Total,
   plain numbers, percentages as numbers, "New" kept).
 - **Amazon-VC** lags ~1 day; its latest date is detected at runtime and its current and comparison windows

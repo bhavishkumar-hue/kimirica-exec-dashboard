@@ -383,18 +383,26 @@ if data.has_category:
 # --------------------------------------------------------------------------- #
 if data.products is not None and not data.products.empty:
     pf = M.add_lag(filtered_products(sel_channels, sel_categories, codes, data.products), P)
-    pt = M.product_table(pf, P)
     with st.container(key="panel_product"):
-        # Search sits in the header row with the other controls, so the table keeps the same gap
-        # under its title as the channel and category tables.
-        ctrl = panel_header("Product performance", ratio=(2, 3))
+        # Search and the table's own category filter sit in the header row with the other controls,
+        # so the table keeps the same gap under its title as the channel and category tables.
+        ctrl = panel_header("Product performance", ratio=(1, 3))
         with ctrl:
-            c_search, c_raw, c_dl = st.columns([2.2, 1, 0.55], vertical_alignment="center")
+            c_cat, c_search, c_raw, c_dl = st.columns([1.6, 1.6, 0.9, 0.5], vertical_alignment="center")
+            with c_cat:
+                # Only this table: everything else on the page keeps the top filters. Picks that no
+                # longer fit the top filters stay offered so the widget doesn't error.
+                cat_opts = sorted(set(pf["category"].dropna()) | set(st.session_state.get("prod_cats", [])))
+                prod_cats = st.multiselect("Product categories", cat_opts, key="prod_cats",
+                                           placeholder="All categories", label_visibility="collapsed")
             with c_search:
                 term = st.text_input("Search products", key="prod_search", placeholder="Search products",
                                      label_visibility="collapsed", icon=":material/search:").strip()
             with c_raw:
                 raw_prod = st.toggle("Full values", key="raw_prod")
+        if prod_cats:
+            pf = M.filter_frame(pf, [], prod_cats)
+        pt = M.product_table(pf, P)
         if pt.empty:
             empty("No product sales for this selection.")
         else:
