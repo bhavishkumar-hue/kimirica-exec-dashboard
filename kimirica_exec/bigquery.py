@@ -34,7 +34,26 @@ _LOGIC_HASH = hashlib.sha1(b"".join(open(m.__file__, "rb").read()
                                     for m in (estimates, products, config))).hexdigest()[:10]
 
 IST = ZoneInfo(config.TIMEZONE)
-NUMERIC = ["mrp_sales", "gross_sales", "quantity", "orders", "target_sales"]
+
+# Speed (Nov 2026): the big frames (sales history, product rows, and what's built from them) are
+# cached with st.cache_resource, which hands every rerun the same object instead of a fresh copy --
+# st.cache_data deep-copied ~90 MB on every click and kept up to 4 versions, which made every filter
+# change slow and pushed Streamlit Cloud towards its memory limit (restarts = the page "glitching").
+# Nothing may modify these frames in place; pandas 3's copy-on-write keeps derived frames separate.
+# Each fetch also returns a fingerprint of what it read, so the built frames are only rebuilt when the
+# data actually changed, not every time a cache expires.
+if int(pd.__version__.split(".")[0]) < 3:   # pandas 3 always works this way; 2.x needs it switched on
+    pd.set_option("mode.copy_on_write", True)
+PRODUCT_RECENT_DAYS = 35  # product rows re-read every TTL_SIDE_TABLES; older ones every TTL_HISTORY
+
+
+def _fp(df: pd.DataFrame | None) -> str:
+    if df is None:
+        return "-"
+    return f"{len(df)}:{int(pd.util.hash_pandas_object(df, index=False).sum()) & 0xFFFFFFFFFFFF:x}"
+
+
+NUMERIC =["mrp_sales", "gross_sales", "quantity", "orders", "target_sales"]
 
 
 @dataclass
@@ -55,6 +74,7 @@ class DashboardData:
     products: pd.DataFrame | None = None  # date x channel x product (see products.py); None = view hidden
     product_attrs: pd.DataFrame | None = None  # code -> category, sub category(s), collection
     channel_first_date: dict[str, dt.date] = field(default_factory=dict)  # earliest day with MRP
+    version: str = ""  # changes only when the loaded data changes (fingerprints); keys the page's caches
 
     @property
     def has_category(self) -> bool:
@@ -304,14 +324,16 @@ def fetch_freshness() -> tuple[pd.DataFrame, dt.datetime | None]:
     return meta, modified
 
 
-@st.cache_data(ttl=config.TTL_HISTORY, show_spinner=False)
-def fetch_history(start: dt.date, end: dt.date) -> pd.DataFrame:
-    return _prepare_sales(_run(queries.summary_sql(), _dates(start, end)))
+@st.cache_resource(ttl=config.TTL_HISTORY, show_spinner=False, max_entries=2)
+def fetch_history(start: dt.date, end: dt.date) -> tuple[pd.DataFrame, str]:
+    df = _prepare_sales(_run(queries.summary_sql(), _dates(start, end)))
+    return df, _fp(df)
 
 
-@st.cache_data(ttl=config.TTL_RECENT, show_spinner=False)
-def fetch_recent(start: dt.date, end: dt.date) -> tuple[pd.DataFrame, dt.datetime]:
-    return _prepare_sales(_run(queries.summary_sql(), _dates(start, end))), dt.datetime.now(IST)
+@st.cache_resource(ttl=config.TTL_RECENT, show_spinner=False, max_entries=2)
+def fetch_recent(start: dt.date, end: dt.date) -> tuple[pd.DataFrame, dt.datetime, str]:
+    df = _prepare_sales(_run(queries.summary_sql(), _dates(start, end)))
+    return df, dt.datetime.now(IST), _fp(df)
 
 
 @st.cache_data(ttl=config.TTL_SIDE_TABLES, show_spinner=False)
@@ -339,16 +361,38 @@ def fetch_website_ebo_orders(start: dt.date, end: dt.date) -> pd.DataFrame:
     return _prepare_orders(_run(queries.orders_sql(), _dates(start, end)))
 
 
-@st.cache_data(ttl=config.TTL_SIDE_TABLES, show_spinner=False)
-def fetch_product_sales(start: dt.date, end: dt.date) -> pd.DataFrame:
-    return _net_to_gross(_prepare_products(_run(queries.product_sales_sql(), _dates(start, end)),
-                                           ["mrp_sales", "own_gross", "quantity"]), "own_gross")
+def _read_product_sales(start: dt.date, end: dt.date) -> tuple[pd.DataFrame, str]:
+    df = _net_to_gross(_prepare_products(_run(queries.product_sales_sql(), _dates(start, end)),
+                                         ["mrp_sales", "own_gross", "quantity"]), "own_gross")
+    return df, _fp(df)
 
 
-@st.cache_data(ttl=config.TTL_SIDE_TABLES, show_spinner=False)
-def fetch_product_gross(start: dt.date, end: dt.date) -> pd.DataFrame:
-    return _net_to_gross(_prepare_products(_run(queries.product_gross_sql(), _dates(start, end)),
-                                           ["report_mrp", "report_gross"]), "report_gross")
+def _read_product_gross(start: dt.date, end: dt.date) -> tuple[pd.DataFrame, str]:
+    df = _net_to_gross(_prepare_products(_run(queries.product_gross_sql(), _dates(start, end)),
+                                         ["report_mrp", "report_gross"]), "report_gross")
+    return df, _fp(df)
+
+
+# Product rows split like sales: the old days (the bulk, ~45 s to download) twice a day, the last
+# PRODUCT_RECENT_DAYS every 15 minutes. One query over all of it used to re-run every 15 minutes.
+@st.cache_resource(ttl=config.TTL_HISTORY, show_spinner=False, max_entries=2)
+def fetch_product_sales_history(start: dt.date, end: dt.date) -> tuple[pd.DataFrame, str]:
+    return _read_product_sales(start, end)
+
+
+@st.cache_resource(ttl=config.TTL_SIDE_TABLES, show_spinner=False, max_entries=2)
+def fetch_product_sales(start: dt.date, end: dt.date) -> tuple[pd.DataFrame, str]:
+    return _read_product_sales(start, end)
+
+
+@st.cache_resource(ttl=config.TTL_HISTORY, show_spinner=False, max_entries=2)
+def fetch_product_gross_history(start: dt.date, end: dt.date) -> tuple[pd.DataFrame, str]:
+    return _read_product_gross(start, end)
+
+
+@st.cache_resource(ttl=config.TTL_SIDE_TABLES, show_spinner=False, max_entries=2)
+def fetch_product_gross(start: dt.date, end: dt.date) -> tuple[pd.DataFrame, str]:
+    return _read_product_gross(start, end)
 
 
 @st.cache_data(ttl=config.TTL_SIDE_TABLES, show_spinner=False)
@@ -358,15 +402,19 @@ def fetch_product_master() -> pd.DataFrame:
     return pm
 
 
-@st.cache_data(show_spinner=False, max_entries=4)
-def combine_products(version: str, _prod: pd.DataFrame, _gross: pd.DataFrame | None,
+@st.cache_resource(show_spinner=False, max_entries=1)
+def combine_products(version: str, _prod: list, _gross: list | None,
                      _pm: pd.DataFrame, _df: pd.DataFrame) -> pd.DataFrame:
-    return products.build_product_frame(_prod, _gross, _pm, _df, is_excluded_category)
+    # Only runs when the version (the inputs' fingerprints) changes. Inputs are shared cached objects,
+    # so the build gets its own frames to work on.
+    prod = pd.concat(_prod, ignore_index=True)
+    gross = pd.concat(_gross, ignore_index=True) if _gross else None
+    return products.build_product_frame(prod, gross, _pm.copy(), _df.copy(), is_excluded_category)
 
 
-@st.cache_data(show_spinner=False, max_entries=4)
+@st.cache_resource(show_spinner=False, max_entries=1)
 def product_attributes(version: str, _pf: pd.DataFrame, _pm: pd.DataFrame) -> pd.DataFrame:
-    return products.product_attributes(_pf, _pm)
+    return products.product_attributes(_pf.copy(deep=False), _pm.copy())
 
 
 def load_products(version: str, df: pd.DataFrame, start: dt.date, end: dt.date, notes: list[str]):
@@ -374,28 +422,34 @@ def load_products(version: str, df: pd.DataFrame, start: dt.date, end: dt.date, 
     if the product tables can't be read."""
     if not config.BQ_PRODUCT_TABLE:
         return None, None
+    cut = max(start, end - dt.timedelta(days=PRODUCT_RECENT_DAYS))
+    split = cut > start
     try:
-        prod = fetch_product_sales(start, end)
+        parts = ([fetch_product_sales_history(start, cut)] if split else []) + \
+                [fetch_product_sales(cut + dt.timedelta(days=1) if split else start, end)]
         pm = fetch_product_master()
     except Exception as exc:
         notes.append(f"Product table could not be read ({exc}); the product view is hidden.")
         return None, None
-    gross = None
+    gparts = None
     if config.BQ_GROSS_PRODUCT_TABLE:
         try:
-            gross = fetch_product_gross(start, end)
+            gparts = ([fetch_product_gross_history(start, cut)] if split else []) + \
+                     [fetch_product_gross(cut + dt.timedelta(days=1) if split else start, end)]
         except Exception as exc:
             notes.append(f"Weekly gross product table could not be read ({exc}); product gross uses "
                          "each channel's daily discount.")
-    v = f"{version}|{len(prod)}|{len(gross) if gross is not None else 0}"
-    pf = combine_products(v, prod, gross, pm, df)
+    v = "|".join([version, _fp(pm)] + [fp for _, fp in parts] + [fp for _, fp in (gparts or [])])
+    pf = combine_products(v, [p for p, _ in parts], [g for g, _ in gparts] if gparts else None, pm, df)
     return pf, product_attributes(v, pf, pm)
 
 
-@st.cache_data(show_spinner=False, max_entries=4)
-def combine(version: str, _sales: pd.DataFrame, _weekly: pd.DataFrame | None, max_date: dt.date):
-    """Fill gross (weekly table, then estimates) and derive net sales. Cached per data version."""
-    df, meta = fill_gross(_sales, _weekly, max_date=max_date)
+@st.cache_resource(show_spinner=False, max_entries=1)
+def combine(version: str, _sales: list, _weekly: pd.DataFrame | None, max_date: dt.date):
+    """Fill gross (weekly table, then estimates) and derive net sales. Cached per data version (the
+    inputs' fingerprints): rebuilt only when the data changed."""
+    df, meta = fill_gross(pd.concat(_sales, ignore_index=True),
+                          None if _weekly is None else _weekly.copy(), max_date=max_date)
     df["net_sales"] = df["gross_sales"] / (1 + config.GST_RATE)
     return df, meta
 
@@ -424,9 +478,8 @@ def load_dashboard_data() -> DashboardData:
     year_end = config.year_start(max_date).replace(year=config.year_start(max_date).year + 1) - dt.timedelta(days=1)
     load_to = max(_month_end(max_date), year_end)
 
-    history = fetch_history(hist_start, cutoff)
-    recent, fetched_at = fetch_recent(cutoff + dt.timedelta(days=1), load_to)
-    sales = pd.concat([history, recent], ignore_index=True)
+    history, hist_fp = fetch_history(hist_start, cutoff)
+    recent, fetched_at, recent_fp = fetch_recent(cutoff + dt.timedelta(days=1), load_to)
 
     weekly = None
     if config.BQ_WEEKLY_TABLE:
@@ -459,8 +512,8 @@ def load_dashboard_data() -> DashboardData:
             notes.append(f"Website/EBO order table could not be read ({exc}); "
                          "using Executive_Sales_Master's own orders instead.")
 
-    version = f"bq|{_LOGIC_HASH}|{max_date}|{fetched_at.isoformat()}|{len(weekly) if weekly is not None else 0}"
-    df, est_meta = combine(version, sales, weekly, max_date)
+    version = f"bq|{_LOGIC_HASH}|{max_date}|{hist_fp}|{recent_fp}|{_fp(weekly)}"
+    df, est_meta = combine(version, [history, recent], weekly, max_date)
 
     product_frame, product_attrs = load_products(version, df, hist_start, load_to, notes)
 
@@ -471,6 +524,7 @@ def load_dashboard_data() -> DashboardData:
         table_modified=modified.astimezone(IST) if modified else None,
         fetched_at=fetched_at, source="bigquery", notes=notes, products=product_frame,
         product_attrs=product_attrs, channel_first_date=first_dates,
+        version=f"{version}|{_fp(ads)}|{_fp(targets)}|{_fp(website_ebo_orders)}",
     )
 
 
@@ -488,13 +542,13 @@ def _load_demo() -> DashboardData:
     targets = _prepare_targets(targets) if targets is not None else None
     aop = _prepare_aop(aop) if (aop is not None and config.BQ_AOP_TABLE) else None
     max_date = max(last_dates.values())
-    df, est_meta = combine(f"demo|{max_date}", sales, weekly, max_date)
+    df, est_meta = combine(f"demo|{max_date}", [sales], weekly, max_date)
     return DashboardData(
         df=df, ads=ads, targets=targets, aop=aop, website_ebo_orders=None,
         channel_last_date=last_dates, est_meta=est_meta,
         max_date=max_date, min_date=df["date"].min().date(),
         table_modified=now.replace(hour=7, minute=45, second=0, microsecond=0),
-        fetched_at=now, source="demo",
+        fetched_at=now, source="demo", version=f"demo|{max_date}",
     )
 
 
@@ -502,5 +556,5 @@ def clear_caches() -> None:
     for fn in (fetch_columns, fetch_freshness, fetch_recent, fetch_history, fetch_weekly, fetch_ads,
                fetch_targets, fetch_aop_raw, fetch_website_ebo_orders, combine,
                fetch_product_sales, fetch_product_gross, fetch_product_master, combine_products,
-               product_attributes):
+               product_attributes, fetch_product_sales_history, fetch_product_gross_history):
         fn.clear()

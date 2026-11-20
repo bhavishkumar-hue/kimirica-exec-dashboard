@@ -103,6 +103,19 @@ def cached_channel_daily(version: str, channels: tuple, categories: tuple, _df: 
                            orders_override=_orders_override)
 
 
+@st.cache_data(show_spinner=False, max_entries=400)
+def _memo(name: str, state: str, _call):
+    return _call()
+
+
+def memo(name: str, state: str, call):
+    """A section's result, remembered per page state (data version + filters + period, see STATE).
+    Every widget click reruns the whole script; without this each one rebuilt every table and chart
+    (~4 s locally, more on Streamlit Cloud) even when only "Full values" or a product search changed.
+    Results are small (tables of a few hundred rows), so hundreds of entries cost little memory."""
+    return _memo(name, state, call)
+
+
 def export_button(slot, data: bytes, name: str, key: str) -> None:
     """A small CSV download in a panel header: the whole table, Total row included."""
     slot.download_button("CSV", data=data, file_name=f"kimirica_{name}_{P.cur_start:%Y%m%d}_{P.as_of:%Y%m%d}.csv",
@@ -150,7 +163,7 @@ if data.df.empty:
     st.warning("The summary table returned no rows for the loaded window.")
     st.stop()
 
-version = f"{data.source}|{data.max_date}|{data.fetched_at.isoformat()}"
+version = data.version or f"{data.source}|{data.max_date}|{data.fetched_at.isoformat()}"
 
 # --------------------------------------------------------------------------- #
 # Header and filters
@@ -295,26 +308,30 @@ vkey = version + (f"|p:{','.join(codes)}" if by_product else "")
 base_df = cached_product_sales(version, codes, data.products) if by_product else data.df
 P = M.build_periods(start_ts, end_ts, data.channel_last_date, mode=mode, compare=compare,
                     cmp_start=cmp_start_custom, cmp_end=cmp_end_custom)
-cd_raw = M.attach_targets(
+# Pacing, highlights and needs attention always describe the current month to date, whatever dates are picked
+PT = M.build_periods(last_day.replace(day=1), last_day, data.channel_last_date)
+# Everything the sections below compute depends only on these; memo() keys on them.
+SCOPE = f"{vkey}|{sel_channels}|{sel_categories}"
+STATE = f"{SCOPE}|{P!r}"
+STATE_TODAY = f"{SCOPE}|{PT!r}"
+cd_raw = memo("cd_raw", SCOPE, lambda: M.attach_targets(
     cached_channel_daily(vkey, tuple(sel_channels), tuple(sel_categories), base_df,
                          None if by_product else data.website_ebo_orders),
     None if by_product else data.targets, sel_channels, sel_categories,
-)
+))
 cd = M.add_lag(cd_raw, P)
-# Pacing, highlights and needs attention always describe the current month to date, whatever dates are picked
-PT = M.build_periods(last_day.replace(day=1), last_day, data.channel_last_date)
 cd_today = M.add_lag(cd_raw, PT)
 ads, _ = M.prepare_ads(data.ads, sel_channels)
 if sel_categories or by_product:
     ads = None  # ad spends aren't split by category or product
 scope_channels = sel_channels  # empty = every channel, including any only present in the AOP tables
 aop = None if (sel_categories or by_product) else data.aop  # the AOP plan isn't split by category or product
-snap = M.kpi_snapshot(cd, ads, P, aop, scope_channels)
 aop_proj = None if aop is None else projected_aop()
-tbl = M.channel_table(cd, P, "channel", aop, scope_channels, ads, aop_proj)
-snap_today = M.kpi_snapshot(cd_today, ads, PT, aop, scope_channels,
-                            aop_proj)
-tbl_today = M.channel_table(cd_today, PT, "channel", aop, scope_channels)
+snap = memo("snap", STATE, lambda: M.kpi_snapshot(cd, ads, P, aop, scope_channels))
+tbl = memo("tbl", STATE, lambda: M.channel_table(cd, P, "channel", aop, scope_channels, ads, aop_proj))
+snap_today = memo("snap_today", STATE_TODAY,
+                  lambda: M.kpi_snapshot(cd_today, ads, PT, aop, scope_channels, aop_proj))
+tbl_today = memo("tbl_today", STATE_TODAY, lambda: M.channel_table(cd_today, PT, "channel", aop, scope_channels))
 in_scope = sorted(set(cd["channel"]))
 
 with st.container(key="filters_caption"):
@@ -352,20 +369,21 @@ with st.container(key="panel_channels"):
         dl_channels = c3  # the column itself, not st.empty(): an empty() slot is cleared at the start of
                           # every rerun, so the header row lost the button and shrank 8px for a moment
     key_col = "channel" if view == "Channels" else "group"
-    view_tbl = tbl if key_col == "channel" else M.channel_table(cd, P, "group", aop, scope_channels, ads, aop_proj)
+    view_tbl = tbl if key_col == "channel" else memo(
+        "tbl_group", STATE, lambda: M.channel_table(cd, P, "group", aop, scope_channels, ads, aop_proj))
     if view_tbl.empty:
         empty("No sales for this selection.")
     else:
         tables.channel_table(view_tbl, key_col, raw, P.cmp_short)  # AOP ach. is vs AOP to date: 100% = on pace
-        export_button(dl_channels, tables.channel_csv(view_tbl, key_col, P.cmp_short),
+        export_button(dl_channels, memo("csv_ch", f"{STATE}|{key_col}", lambda: tables.channel_csv(view_tbl, key_col, P.cmp_short)),
                       "channels" if key_col == "channel" else "channel_groups", "dl_channels")
 
 # --------------------------------------------------------------------------- #
 # 3. Category performance
 # --------------------------------------------------------------------------- #
 if data.has_category:
-    fdf = M.add_lag(cached_category(vkey, tuple(sel_channels), tuple(sel_categories), base_df), P)
-    ct = M.category_table(fdf, P)
+    ct = memo("ct", STATE, lambda: M.category_table(
+        M.add_lag(cached_category(vkey, tuple(sel_channels), tuple(sel_categories), base_df), P), P))
     with st.container(key="panel_category"):
         ctrl = panel_header("Category performance")
         with ctrl:
@@ -376,14 +394,22 @@ if data.has_category:
             empty("No category sales for this selection.")
         else:
             tables.category_table(ct, raw_cat, P.cmp_short)
-            export_button(c_dl, tables.category_csv(ct, P.cmp_short), "categories", "dl_categories")
+            export_button(c_dl, memo("csv_cat", STATE, lambda: tables.category_csv(ct, P.cmp_short)), "categories", "dl_categories")
             charts.category_chart(ct, P)
 
 # --------------------------------------------------------------------------- #
 # 3b. Product performance
 # --------------------------------------------------------------------------- #
 if data.products is not None and not data.products.empty:
-    pf = M.add_lag(filtered_products(sel_channels, sel_categories, codes, data.products), P)
+    def _product_frame(cats: list) -> pd.DataFrame:
+        # Only the dates the table looks at (the period and its comparison), before anything else:
+        # the product frame holds every day since history start (~380k rows).
+        pf = filtered_products(sel_channels, sel_categories, codes, data.products)
+        pf = M.between(pf, min(P.cur_start, P.cmp_start), max(P.as_of, P.cmp_end))
+        if cats:
+            pf = M.filter_frame(pf, [], cats)
+        return M.add_lag(pf, P)
+
     with st.container(key="panel_product"):
         # Search and the table's own category filter sit in the header row with the other controls,
         # so the table keeps the same gap under its title as the channel and category tables.
@@ -393,7 +419,9 @@ if data.products is not None and not data.products.empty:
             with c_cat:
                 # Only this table: everything else on the page keeps the top filters. Picks that no
                 # longer fit the top filters stay offered so the widget doesn't error.
-                cat_opts = sorted(set(pf["category"].dropna()) | set(st.session_state.get("prod_cats", [])))
+                in_scope_cats = memo("prod_cat_opts", f"{SCOPE}|{codes}", lambda: sorted(set(
+                    filtered_products(sel_channels, sel_categories, codes, data.products)["category"].dropna())))
+                cat_opts = sorted(set(in_scope_cats) | set(st.session_state.get("prod_cats", [])))
                 prod_cats = st.multiselect("Product categories", cat_opts, key="prod_cats",
                                            placeholder="All categories", label_visibility="collapsed")
             with c_search:
@@ -401,9 +429,7 @@ if data.products is not None and not data.products.empty:
                                      label_visibility="collapsed", icon=":material/search:").strip()
             with c_raw:
                 raw_prod = st.toggle("Full values", key="raw_prod")
-        if prod_cats:
-            pf = M.filter_frame(pf, [], prod_cats)
-        pt = M.product_table(pf, P)
+        pt = memo("pt", f"{STATE}|{codes}|{prod_cats}", lambda: M.product_table(_product_frame(prod_cats), P))
         if pt.empty:
             empty("No product sales for this selection.")
         else:
@@ -414,14 +440,16 @@ if data.products is not None and not data.products.empty:
                 empty(f"No products match “{term}”.")
             else:
                 tables.product_table(shown, raw_prod, P.cmp_short)
-                export_button(c_dl, tables.product_csv(shown, P.cmp_short), "products", "dl_products")
+                export_button(c_dl, memo("csv_prod", f"{STATE}|{codes}|{prod_cats}|{term}", lambda: tables.product_csv(shown, P.cmp_short)),
+                              "products", "dl_products")
 
 # --------------------------------------------------------------------------- #
 # 4. Growth drivers and target vs actual
 # --------------------------------------------------------------------------- #
 has_targets = cd["target_sales"].notna().any() or (aop is not None and not aop.empty)
 target_mode = st.session_state.get("target_mode") or "Period"
-tf = M.target_frame(cd, P, target_mode, aop, scope_channels) if has_targets else None
+tf = memo("tf", f"{STATE}|{target_mode}", lambda: M.target_frame(cd, P, target_mode, aop, scope_channels)) \
+    if has_targets else None
 n_rows = max(int(view_tbl["Δ vs LMTD"].notna().sum()), 0 if tf is None else len(tf))
 pair_height = max(300, 32 * n_rows + 70)
 
@@ -448,7 +476,7 @@ with st.container(key="panel_monthly"):
         trend_labels = [M.METRIC_LABELS[k] for k in ("mrp_sales", "gross_sales", "net_sales")]
         m_label = seg(trend_labels, M.METRIC_LABELS[config.GROWTH_METRIC], "monthly_metric")
     m_metric = {v: k for k, v in M.METRIC_LABELS.items()}[m_label]
-    mt = M.monthly_trend(cd, ads, P)
+    mt = memo("mt", STATE, lambda: M.monthly_trend(cd, ads, P))
     if mt["mrp"].notna().any():
         charts.monthly_trend_chart(mt, m_metric)
     else:
@@ -462,7 +490,7 @@ with st.container(key="panel_daily"):
     with ctrl:
         d_label = seg(trend_labels, M.METRIC_LABELS[config.GROWTH_METRIC], "daily_metric")
     d_metric = {v: k for k, v in M.METRIC_LABELS.items()}[d_label]
-    dtr = M.daily_trend(cd, P)
+    dtr = memo("dtr", STATE, lambda: M.daily_trend(cd, P))
     if not dtr.empty and dtr["mrp"].notna().any():
         charts.daily_trend_chart(dtr, d_metric, P.cmp_short)
     else:
@@ -473,7 +501,7 @@ with st.container(key="panel_daily"):
 # --------------------------------------------------------------------------- #
 with st.container(key="panel_highlights"):
     T.section("Highlights")
-    insights.highlights(M.insights(cd_today, PT, snap_today, tbl_today))
+    insights.highlights(memo("insights", STATE_TODAY, lambda: M.insights(cd_today, PT, snap_today, tbl_today)))
 
 # Earliest day with sales data per channel (the channels in the filter, oldest first).
 firsts = sorted(((d, ch) for ch, d in data.channel_first_date.items() if ch in scope and d is not None))

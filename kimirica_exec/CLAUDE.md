@@ -183,6 +183,21 @@ Add `?refresh=1` to the URL to clear all caches. `.streamlit/secrets.toml` must 
   clears every cache *before* the rerun the click triggers, so one rerun loads fresh data. Clearing
   inline and then calling `st.rerun()` meant two reruns. A toast ("Refreshing data…") is the loading
   cue, since the top-of-page spinner is off screen when the button is clicked.
+- **Speed (Nov 2026; owner: filter changes were slow and "glitchy").** Measured locally: a click
+  went from 4-10 s to ~1-3 s (~1 s when the filter combination was seen before).
+  - Big frames (sales history/recent, product rows, the combined frames) use `st.cache_resource`: one
+    shared object, no copy per click. Never modify `data.df` / `data.products` in place (pandas
+    copy-on-write keeps derived frames separate; switched on explicitly for pandas 2).
+  - Each fetch returns a fingerprint (`bigquery._fp`); `combine` / `combine_products` rebuild only when
+    the data changed. `DashboardData.version` is built from these and keys the page's caches.
+  - Product rows are split like sales: the last `PRODUCT_RECENT_DAYS` (35) every 15 min, older ones
+    every 12 h (the full ~45 s download used to repeat every 15 min).
+  - `app.memo(name, state, fn)` remembers each section's result (tables, snapshots, trends, CSVs) per
+    page state (`STATE` = data version + filters + `Periods`). Anything new a section depends on must
+    be part of its key.
+  - The product table works on just the period's and comparison's dates (verified identical).
+  - Loading sign: thin bar + "Updating…" pill while a rerun runs (`.k-loading`, theme.py), shown after
+    0.3 s so quick reruns don't flash.
 - `[data-stale="true"]` is forced to full opacity in theme.py. Streamlit fades every element from the
   previous run while a rerun is in progress; a Refresh reloads BigQuery for several seconds, so the
   whole page sat washed out that long (owner called it a glitch). Now numbers swap in place.

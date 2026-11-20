@@ -11,6 +11,8 @@ since this bypasses the live table entirely.
 """
 from __future__ import annotations
 
+import functools
+
 import pandas as pd
 
 FY_START = 2026  # Financial_Year '2026-27'
@@ -55,6 +57,7 @@ for _ch, _vals in _PLAN.items():
     assert len(_vals) == 12, f"{_ch} has {len(_vals)} months, expected 12"
 
 
+@functools.cache   # parsed once per process; callers only read it
 def hardcoded_aop() -> pd.DataFrame:
     """FY26-27 AOP plan as (fy_start, date, channel, aop) -- same shape as bigquery._prepare_aop()."""
     rows = [
@@ -79,6 +82,7 @@ _PROJECTION_CSV = """Date,Amazon-VC,Nykaa,Tira,Blinkit,Swiggy,Zepto,FK-Minutes,W
 01-03-2027,35000000,16000000,6000000,45000000,7000000,7000000,800000,30898616,800000,1500000,2010924,720000,2160000,4660000"""
 
 
+@functools.cache
 def projected_aop() -> pd.DataFrame:
     """Projected AOP in the same shape as hardcoded_aop(): the re-forecast where given, AOP elsewhere."""
     import io

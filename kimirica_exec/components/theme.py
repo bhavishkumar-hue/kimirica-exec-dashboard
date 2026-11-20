@@ -73,6 +73,26 @@ header[data-testid="stHeader"] button, header[data-testid="stHeader"] a {{ point
    and fades it out. A Refresh reloads BigQuery for several seconds, so the whole page sat washed out
    that long. Keep it crisp instead; the new numbers swap in place when the run finishes. */
 [data-stale="true"] {{ opacity: 1 !important; transition: none !important; }}
+/* Loading sign (owner, Nov 2026: after picking a filter there was no way to tell whether the page had
+   caught up). While the script runs, Streamlit marks the app data-test-script-state="running": a thin
+   moving bar across the top and an "Updating…" pill, both gone the moment the new numbers are in.
+   They appear only after 0.3 s, so quick reruns don't flash. */
+@keyframes k-show {{ to {{ opacity: 1; }} }}
+@keyframes k-slide {{ 0% {{ left: -35%; }} 100% {{ left: 100%; }} }}
+@keyframes k-spin {{ to {{ transform: rotate(360deg); }} }}
+.k-loading {{ display: none; }}
+[data-testid="stApp"][data-test-script-state="running"] .k-loading {{
+  display: block; opacity: 0; animation: k-show 0.15s ease 0.3s forwards; }}
+.k-loading-bar {{ position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 1000000;
+  overflow: hidden; background: {LINE}; }}
+.k-loading-bar::after {{ content: ""; position: absolute; top: 0; bottom: 0; width: 35%; background: {ACCENT};
+  animation: k-slide 1.1s ease-in-out infinite; }}
+.k-loading-pill {{ position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 1000000;
+  display: flex; align-items: center; gap: 8px; padding: 7px 14px 7px 12px; border-radius: 999px;
+  background: {SURFACE}; color: {INK}; border: 1px solid {LINE}; font-size: 13px; font-weight: 600;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); font-family: {FONT}; }}
+.k-loading-pill i {{ width: 13px; height: 13px; border-radius: 50%; border: 2px solid {LINE};
+  border-top-color: {ACCENT}; animation: k-spin 0.7s linear infinite; }}
 [data-testid="stMainBlockContainer"] > div > [data-testid="stVerticalBlock"] {{ gap: 1.25rem; }}
 
 /* widgets */
@@ -298,7 +318,9 @@ _FREEZE_JS = """
 
 def inject_css() -> None:
     _apply_theme()
-    st.markdown(_build_css(), unsafe_allow_html=True)
+    # The loading sign rides along with the CSS: fixed-position, so it takes no room on the page.
+    st.markdown(_build_css() + '<div class="k-loading"><div class="k-loading-bar"></div>'
+                '<div class="k-loading-pill"><i></i>Updating…</div></div>', unsafe_allow_html=True)
     with st.container(key="k_colfreeze"):
         st.html(_FREEZE_JS, unsafe_allow_javascript=True)
 

@@ -363,6 +363,8 @@ def build_periods(start, end=None, last_dates: dict | None = None,
 # Frames
 # =========================================================================== #
 def filter_frame(df: pd.DataFrame, channels: list[str], categories: list[str]) -> pd.DataFrame:
+    if not channels and not categories:
+        return df   # no filter: no 380k-row copy of the product frame on every click
     mask = pd.Series(True, index=df.index)
     if channels:
         mask &= df["channel"].isin(channels)
